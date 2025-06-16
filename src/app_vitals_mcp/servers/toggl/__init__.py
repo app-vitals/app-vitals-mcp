@@ -1,0 +1,1 @@
+"""Toggl MCP Server - Time tracking and productivity monitoring."""
