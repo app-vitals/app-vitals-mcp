@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Toggl MCP Server main entry point."""
 
-import asyncio
 import os
-from typing import Optional
 
-from fastmcp import FastMCP
-from pydantic import BaseModel
 
 from .config import TogglConfig
 from .server import TogglServer

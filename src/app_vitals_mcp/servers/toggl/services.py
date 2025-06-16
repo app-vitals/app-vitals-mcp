@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from .client import TogglClient
-from .models import TimeEntry, Project, Workspace
+from .models import TimeEntry, Project, Workspace, Task
 
 
 class TimerService:
@@ -26,7 +26,7 @@ class TimerService:
         """Get currently running timer."""
         return await self.client.get_current_time_entry()
     
-    async def start_timer(self, description: str, project_id: int, 
+    async def start_timer(self, description: str, project_id: int, task_id: int,
                          tags: Optional[List[str]] = None) -> TimeEntry:
         """Start a new timer."""
         workspace_id = await self._get_workspace_id()
@@ -36,6 +36,7 @@ class TimerService:
         return await self.client.start_time_entry(
             description=description,
             project_id=project_id,
+            task_id=task_id,
             workspace_id=workspace_id,
             tags=tags
         )
@@ -65,7 +66,8 @@ class TimeEntryService:
         return workspaces[0].id if workspaces else None
     
     async def create_entry(self, description: str, start_time: str, duration_minutes: int,
-                          project_id: int, tags: Optional[List[str]] = None,
+                          project_id: int, task_id: int,
+                          tags: Optional[List[str]] = None,
                           billable: bool = True) -> TimeEntry:
         """Create a completed time entry."""
         workspace_id = await self._get_workspace_id()
@@ -78,6 +80,7 @@ class TimeEntryService:
             start=start_time,
             duration=duration_minutes * 60,  # Convert to seconds
             project_id=project_id,
+            task_id=task_id,
             tags=tags,
             billable=billable
         )
@@ -88,7 +91,8 @@ class TimeEntryService:
     
     async def update_entry(self, time_entry_id: int, description: Optional[str] = None,
                           start_time: Optional[str] = None, duration_minutes: Optional[int] = None,
-                          project_id: Optional[int] = None, tags: Optional[List[str]] = None,
+                          project_id: Optional[int] = None, task_id: Optional[int] = None,
+                          tags: Optional[List[str]] = None,
                           billable: Optional[bool] = None) -> TimeEntry:
         """Update an existing time entry."""
         workspace_id = await self._get_workspace_id()
@@ -104,6 +108,7 @@ class TimeEntryService:
             start=start_time,
             duration=duration_seconds,
             project_id=project_id,
+            task_id=task_id,
             tags=tags,
             billable=billable
         )
@@ -179,3 +184,69 @@ class WorkspaceService:
             return []
         
         return await self.client.get_projects(workspace_id)
+
+
+class TaskService:
+    """Service for task management."""
+    
+    def __init__(self, client: TogglClient, workspace_id: Optional[int] = None):
+        self.client = client
+        self.default_workspace_id = workspace_id
+    
+    async def _get_workspace_id(self) -> Optional[int]:
+        """Get workspace ID (from config or first available)."""
+        if self.default_workspace_id:
+            return self.default_workspace_id
+        
+        workspaces = await self.client.get_workspaces()
+        return workspaces[0].id if workspaces else None
+    
+    async def get_tasks(self, project_id: Optional[int] = None, 
+                       active: Optional[bool] = None) -> List[Task]:
+        """Get tasks, optionally filtered by project and active status."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+        
+        return await self.client.get_tasks(workspace_id, project_id, active)
+    
+    async def get_task(self, project_id: int, task_id: int) -> Optional[Task]:
+        """Get a specific task."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+        
+        return await self.client.get_task(workspace_id, project_id, task_id)
+    
+    async def create_task(self, project_id: int, name: str, 
+                         estimated_seconds: Optional[int] = None, 
+                         active: bool = True) -> Task:
+        """Create a new task."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+        
+        return await self.client.create_task(
+            workspace_id, project_id, name, estimated_seconds, active
+        )
+    
+    async def update_task(self, project_id: int, task_id: int,
+                         name: Optional[str] = None, 
+                         estimated_seconds: Optional[int] = None,
+                         active: Optional[bool] = None) -> Task:
+        """Update an existing task."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+        
+        return await self.client.update_task(
+            workspace_id, project_id, task_id, name, estimated_seconds, active
+        )
+    
+    async def delete_task(self, project_id: int, task_id: int) -> bool:
+        """Delete a task."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+        
+        return await self.client.delete_task(workspace_id, project_id, task_id)

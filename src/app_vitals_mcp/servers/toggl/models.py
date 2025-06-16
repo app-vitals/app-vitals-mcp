@@ -12,6 +12,7 @@ class TimeEntry(BaseModel):
     stop: Optional[str] = None
     duration: int
     project_id: Optional[int] = None
+    task_id: Optional[int] = None
     workspace_id: int
     tags: Optional[List[str]] = []
     billable: Optional[bool] = False
@@ -30,6 +31,17 @@ class Project(BaseModel):
     client_id: Optional[int] = None
     active: bool = True
     color: str = "#3750b5"
+
+
+class Task(BaseModel):
+    """Toggl task model."""
+    id: int
+    name: str
+    project_id: int
+    workspace_id: int
+    active: bool = True
+    estimated_seconds: Optional[int] = None
+    tracked_seconds: Optional[int] = None
 
 
 class Workspace(BaseModel):

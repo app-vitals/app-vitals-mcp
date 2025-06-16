@@ -6,7 +6,7 @@ from fastmcp import FastMCP
 
 from .config import TogglConfig
 from .client import TogglClient
-from .services import TimerService, TimeEntryService, AnalyticsService, WorkspaceService
+from .services import TimerService, TimeEntryService, AnalyticsService, WorkspaceService, TaskService
 
 
 class TogglServer:
@@ -22,6 +22,7 @@ class TogglServer:
         self.entry_service = TimeEntryService(self.client, config.workspace_id)
         self.analytics_service = AnalyticsService(self.client)
         self.workspace_service = WorkspaceService(self.client)
+        self.task_service = TaskService(self.client, config.workspace_id)
         
         self._setup_tools()
     
@@ -31,6 +32,7 @@ class TogglServer:
         self._setup_entry_tools()
         self._setup_analytics_tools()
         self._setup_workspace_tools()
+        self._setup_task_tools()
     
     def _setup_timer_tools(self):
         """Set up timer-related tools."""
@@ -44,17 +46,18 @@ class TogglServer:
             return {"status": "No time entry currently running"}
         
         @self.mcp.tool()
-        async def start_timer(description: str, project_id: int, 
+        async def start_timer(description: str, project_id: int, task_id: int,
                              tags: Optional[List[str]] = None) -> Dict[str, Any]:
             """Start a new time entry.
             
             Args:
                 description: Description of what you're working on
                 project_id: Project ID to associate with the time entry (required)
+                task_id: Task ID to associate with the time entry (required)
                 tags: Optional list of tags for the time entry
             """
             try:
-                entry = await self.timer_service.start_timer(description, project_id, tags)
+                entry = await self.timer_service.start_timer(description, project_id, task_id, tags)
                 return entry.model_dump()
             except ValueError as e:
                 return {"error": str(e)}
@@ -72,7 +75,8 @@ class TogglServer:
         
         @self.mcp.tool()
         async def create_time_entry(description: str, start_time: str, duration_minutes: int,
-                                   project_id: int, tags: Optional[List[str]] = None,
+                                   project_id: int, task_id: int,
+                                   tags: Optional[List[str]] = None,
                                    billable: bool = True) -> Dict[str, Any]:
             """Create a completed time entry (not a running timer).
             
@@ -81,12 +85,13 @@ class TogglServer:
                 start_time: Start time in ISO format (e.g., "2024-01-01T10:00:00Z")
                 duration_minutes: Duration in minutes
                 project_id: Project ID to associate with the time entry (required)
+                task_id: Task ID to associate with the time entry (required)
                 tags: Optional list of tags for the time entry
                 billable: Whether the time entry is billable (default: True)
             """
             try:
                 entry = await self.entry_service.create_entry(
-                    description, start_time, duration_minutes, project_id, tags, billable
+                    description, start_time, duration_minutes, project_id, task_id, tags, billable
                 )
                 return entry.model_dump()
             except ValueError as e:
@@ -107,7 +112,8 @@ class TogglServer:
         @self.mcp.tool()
         async def update_time_entry(time_entry_id: int, description: Optional[str] = None,
                                    start_time: Optional[str] = None, duration_minutes: Optional[int] = None,
-                                   project_id: Optional[int] = None, tags: Optional[List[str]] = None,
+                                   project_id: Optional[int] = None, task_id: Optional[int] = None,
+                                   tags: Optional[List[str]] = None,
                                    billable: Optional[bool] = None) -> Dict[str, Any]:
             """Update an existing time entry.
             
@@ -117,13 +123,14 @@ class TogglServer:
                 start_time: New start time in ISO format (optional)
                 duration_minutes: New duration in minutes (optional)
                 project_id: New project ID (optional)
+                task_id: New task ID (optional)
                 tags: New list of tags (optional)
                 billable: Whether the time entry is billable (optional)
             """
             try:
                 entry = await self.entry_service.update_entry(
                     time_entry_id, description, start_time, duration_minutes, 
-                    project_id, tags, billable
+                    project_id, task_id, tags, billable
                 )
                 return entry.model_dump()
             except ValueError as e:
@@ -185,6 +192,103 @@ class TogglServer:
             """
             projects = await self.workspace_service.get_projects(workspace_id)
             return [project.model_dump() for project in projects]
+    
+    def _setup_task_tools(self):
+        """Set up task management tools."""
+        
+        @self.mcp.tool()
+        async def get_tasks(project_id: Optional[int] = None, 
+                           active: Optional[bool] = None) -> List[Dict[str, Any]]:
+            """Get tasks, optionally filtered by project and active status.
+            
+            Args:
+                project_id: Optional project ID to filter tasks
+                active: Optional filter for active/inactive tasks
+            """
+            try:
+                tasks = await self.task_service.get_tasks(project_id, active)
+                return [task.model_dump() for task in tasks]
+            except ValueError as e:
+                return {"error": str(e)}
+        
+        @self.mcp.tool()
+        async def get_task(project_id: int, task_id: int) -> Dict[str, Any]:
+            """Get details of a specific task.
+            
+            Args:
+                project_id: Project ID the task belongs to
+                task_id: ID of the task to retrieve
+            """
+            task = await self.task_service.get_task(project_id, task_id)
+            if task:
+                return task.model_dump()
+            return {"error": "Task not found"}
+        
+        @self.mcp.tool()
+        async def create_task(project_id: int, name: str, 
+                             estimated_hours: Optional[float] = None,
+                             active: bool = True) -> Dict[str, Any]:
+            """Create a new task in a project.
+            
+            Args:
+                project_id: Project ID to create the task in (required)
+                name: Name/description of the task
+                estimated_hours: Optional estimated time in hours
+                active: Whether the task is active (default: True)
+            """
+            try:
+                estimated_seconds = None
+                if estimated_hours is not None:
+                    estimated_seconds = int(estimated_hours * 3600)
+                
+                task = await self.task_service.create_task(
+                    project_id, name, estimated_seconds, active
+                )
+                return task.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+        
+        @self.mcp.tool()
+        async def update_task(project_id: int, task_id: int,
+                             name: Optional[str] = None,
+                             estimated_hours: Optional[float] = None,
+                             active: Optional[bool] = None) -> Dict[str, Any]:
+            """Update an existing task.
+            
+            Args:
+                project_id: Project ID the task belongs to
+                task_id: ID of the task to update
+                name: New name for the task (optional)
+                estimated_hours: New estimated time in hours (optional)
+                active: Whether the task is active (optional)
+            """
+            try:
+                estimated_seconds = None
+                if estimated_hours is not None:
+                    estimated_seconds = int(estimated_hours * 3600)
+                
+                task = await self.task_service.update_task(
+                    project_id, task_id, name, estimated_seconds, active
+                )
+                return task.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+        
+        @self.mcp.tool()
+        async def delete_task(project_id: int, task_id: int) -> Dict[str, Any]:
+            """Delete a task.
+            
+            Args:
+                project_id: Project ID the task belongs to
+                task_id: ID of the task to delete
+            """
+            try:
+                success = await self.task_service.delete_task(project_id, task_id)
+                if success:
+                    return {"success": True, "message": f"Task {task_id} deleted successfully"}
+                return {"success": False, "message": f"Failed to delete task {task_id}"}
+            except ValueError as e:
+                return {"error": str(e)}
     
     def run(self):
         """Run the MCP server."""

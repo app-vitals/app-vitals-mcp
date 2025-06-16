@@ -127,10 +127,24 @@ class TestTogglIntegration:
             await tools["stop_timer"].fn()
             await asyncio.sleep(2)  # Wait for API consistency
         
-        # Start a new timer (using the Integration Tests project)
+        # Get tasks for the project to find a task_id
+        tasks = await tools["get_tasks"].fn(project_id=project_id)
+        if not tasks:
+            # Create a test task if none exist
+            task_result = await tools["create_task"].fn(
+                project_id=project_id,
+                name="Integration test task - safe to delete",
+                estimated_hours=1.0
+            )
+            task_id = task_result["id"]
+        else:
+            task_id = tasks[0]["id"]
+        
+        # Start a new timer (using the Integration Tests project and task)
         start_result = await tools["start_timer"].fn(
             description="Integration test timer - safe to delete",
-            project_id=project_id
+            project_id=project_id,
+            task_id=task_id
         )
         assert "id" in start_result
         assert start_result["description"] == "Integration test timer - safe to delete"
@@ -182,6 +196,58 @@ class TestTogglIntegration:
         # At least some should succeed
         successes = [r for r in results if not isinstance(r, Exception)]
         assert len(successes) > 0
+
+    async def test_task_management_workflow(self, integration_server: TogglServer):
+        """Test complete task management workflow."""
+        tools = integration_server.mcp._tool_manager._tools
+        
+        # Get available projects and find the test project
+        projects = await tools["get_projects"].fn()
+        test_project = next((p for p in projects if p["name"] == "Integration Tests"), None)
+        if not test_project:
+            pytest.fail("Integration Tests project not found - please create a project named 'Integration Tests' in your Toggl workspace")
+        
+        project_id = test_project["id"]
+        
+        # Create a test task
+        create_result = await tools["create_task"].fn(
+            project_id=project_id,
+            name="Test task for integration - safe to delete",
+            estimated_hours=2.0
+        )
+        assert "id" in create_result
+        assert create_result["name"] == "Test task for integration - safe to delete"
+        assert create_result["estimated_seconds"] == 7200  # 2 hours
+        
+        task_id = create_result["id"]
+        
+        # Get the task to verify it was created
+        get_result = await tools["get_task"].fn(project_id=project_id, task_id=task_id)
+        assert get_result["id"] == task_id
+        assert get_result["name"] == "Test task for integration - safe to delete"
+        
+        # Update the task
+        update_result = await tools["update_task"].fn(
+            project_id=project_id,
+            task_id=task_id,
+            name="Updated test task",
+            estimated_hours=3.0
+        )
+        assert update_result["id"] == task_id
+        assert update_result["name"] == "Updated test task"
+        assert update_result["estimated_seconds"] == 10800  # 3 hours
+        
+        # Get tasks for the project
+        tasks_result = await tools["get_tasks"].fn(project_id=project_id)
+        assert isinstance(tasks_result, list)
+        # Find our test task in the list
+        our_task = next((t for t in tasks_result if t["id"] == task_id), None)
+        assert our_task is not None
+        assert our_task["name"] == "Updated test task"
+        
+        # Delete the test task (cleanup)
+        delete_result = await tools["delete_task"].fn(project_id=project_id, task_id=task_id)
+        assert delete_result["success"]
 
 
 def test_environment_setup():

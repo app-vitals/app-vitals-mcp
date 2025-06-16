@@ -3,10 +3,9 @@
 import pytest
 import respx
 import httpx
-from datetime import datetime, timedelta
 
 from app_vitals_mcp.servers.toggl.client import TogglClient
-from app_vitals_mcp.servers.toggl.models import TimeEntry, Project, Workspace
+from app_vitals_mcp.servers.toggl.models import TimeEntry, Project, Workspace, Task
 
 
 @pytest.mark.unit
@@ -133,6 +132,7 @@ class TestTogglClient:
         result = await mock_toggl_client.start_time_entry(
             description="New task",
             project_id=111,
+            task_id=1001,
             workspace_id=workspace_id
         )
         
@@ -257,13 +257,14 @@ class TestTogglClient:
             start="2024-01-01T10:00:00Z",
             duration=3600,
             project_id=222,
+            task_id=1002,
             tags=["test"],
             billable=True
         )
         
         assert result.id == 888
         assert result.description == "Created task"
-        assert result.billable == True
+        assert result.billable
 
     @respx.mock
     async def test_update_time_entry(self, mock_toggl_client: TogglClient):
@@ -291,6 +292,7 @@ class TestTogglClient:
             time_entry_id=time_entry_id,
             description="Updated task",
             duration=7200,
+            task_id=1003,
             tags=["updated"],
             billable=False
         )
@@ -310,7 +312,7 @@ class TestTogglClient:
         )
         
         result = await mock_toggl_client.delete_time_entry(workspace_id, time_entry_id)
-        assert result == True
+        assert result
 
     @respx.mock
     async def test_get_time_entry(self, mock_toggl_client: TogglClient):
@@ -336,3 +338,150 @@ class TestTogglClient:
         assert result is not None
         assert result.id == time_entry_id
         assert result.description == "Retrieved task"
+
+    @respx.mock
+    async def test_get_tasks(self, mock_toggl_client: TogglClient):
+        """Test getting tasks for a project."""
+        workspace_id = 12345
+        project_id = 111
+        mock_response = [
+            {
+                "id": 1001,
+                "name": "Design mockups",
+                "project_id": project_id,
+                "workspace_id": workspace_id,
+                "active": True,
+                "estimated_seconds": 7200,
+                "tracked_seconds": 3600
+            },
+            {
+                "id": 1002,
+                "name": "Code review",
+                "project_id": project_id,
+                "workspace_id": workspace_id,
+                "active": True,
+                "estimated_seconds": None,
+                "tracked_seconds": 1800
+            }
+        ]
+        
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}/tasks").respond(
+            status_code=200,
+            json=mock_response
+        )
+        
+        result = await mock_toggl_client.get_tasks(workspace_id, project_id)
+        
+        assert len(result) == 2
+        assert isinstance(result[0], Task)
+        assert result[0].id == 1001
+        assert result[0].name == "Design mockups"
+        assert result[0].estimated_seconds == 7200
+
+    @respx.mock
+    async def test_get_task(self, mock_toggl_client: TogglClient):
+        """Test getting a specific task."""
+        workspace_id = 12345
+        project_id = 111
+        task_id = 1001
+        mock_response = {
+            "id": task_id,
+            "name": "Design mockups",
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+            "active": True,
+            "estimated_seconds": 7200,
+            "tracked_seconds": 3600
+        }
+        
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+        
+        result = await mock_toggl_client.get_task(workspace_id, project_id, task_id)
+        
+        assert result is not None
+        assert isinstance(result, Task)
+        assert result.id == task_id
+        assert result.name == "Design mockups"
+
+    @respx.mock
+    async def test_create_task(self, mock_toggl_client: TogglClient):
+        """Test creating a new task."""
+        workspace_id = 12345
+        project_id = 111
+        mock_response = {
+            "id": 1003,
+            "name": "New feature implementation",
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+            "active": True,
+            "estimated_seconds": 14400,
+            "tracked_seconds": 0
+        }
+        
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}/tasks").respond(
+            status_code=200,
+            json=mock_response
+        )
+        
+        result = await mock_toggl_client.create_task(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            name="New feature implementation",
+            estimated_seconds=14400
+        )
+        
+        assert result.id == 1003
+        assert result.name == "New feature implementation"
+        assert result.estimated_seconds == 14400
+
+    @respx.mock
+    async def test_update_task(self, mock_toggl_client: TogglClient):
+        """Test updating an existing task."""
+        workspace_id = 12345
+        project_id = 111
+        task_id = 1001
+        mock_response = {
+            "id": task_id,
+            "name": "Updated task name",
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+            "active": False,
+            "estimated_seconds": 10800,
+            "tracked_seconds": 3600
+        }
+        
+        respx.put(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+        
+        result = await mock_toggl_client.update_task(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            task_id=task_id,
+            name="Updated task name",
+            estimated_seconds=10800,
+            active=False
+        )
+        
+        assert result.id == task_id
+        assert result.name == "Updated task name"
+        assert not result.active
+        assert result.estimated_seconds == 10800
+
+    @respx.mock
+    async def test_delete_task(self, mock_toggl_client: TogglClient):
+        """Test deleting a task."""
+        workspace_id = 12345
+        project_id = 111
+        task_id = 1001
+        
+        respx.delete(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}").respond(
+            status_code=200
+        )
+        
+        result = await mock_toggl_client.delete_task(workspace_id, project_id, task_id)
+        assert result

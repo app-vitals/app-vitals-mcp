@@ -2,12 +2,11 @@
 
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, patch
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 
 from app_vitals_mcp.servers.toggl.config import TogglConfig
 from app_vitals_mcp.servers.toggl.server import TogglServer
-from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project
+from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project, Task
 
 
 @pytest.mark.unit
@@ -32,6 +31,11 @@ class TestTogglServerUnit:
         server.analytics_service.get_time_summary = AsyncMock()
         server.workspace_service.get_workspaces = AsyncMock()
         server.workspace_service.get_projects = AsyncMock()
+        server.task_service.get_tasks = AsyncMock()
+        server.task_service.get_task = AsyncMock()
+        server.task_service.create_task = AsyncMock()
+        server.task_service.update_task = AsyncMock()
+        server.task_service.delete_task = AsyncMock()
         server.client.close = AsyncMock()
         
         yield server
@@ -82,12 +86,12 @@ class TestTogglServerUnit:
         tools = mock_server.mcp._tool_manager._tools
         start_timer = tools["start_timer"]
         
-        result = await start_timer.fn(description="New task", project_id=111)
+        result = await start_timer.fn(description="New task", project_id=111, task_id=1001)
         
         assert result["id"] == 456
         assert result["description"] == "New task"
         mock_server.timer_service.start_timer.assert_called_once_with(
-            "New task", 111, None
+            "New task", 111, 1001, None
         )
 
     async def test_stop_timer_no_running(self, mock_server: TogglServer):
@@ -102,7 +106,7 @@ class TestTogglServerUnit:
 
     async def test_stop_timer_success(self, mock_server: TogglServer):
         """Test successfully stopping a timer."""
-        running_entry = TimeEntry(
+        TimeEntry(
             id=789,
             description="Running task",
             start="2024-01-01T12:00:00Z",
@@ -195,7 +199,7 @@ class TestTogglServerUnit:
 
     async def test_get_time_summary(self, mock_server: TogglServer):
         """Test getting time summary."""
-        mock_entries = [
+        [
             TimeEntry(
                 id=1,
                 description="Task 1",
@@ -265,6 +269,7 @@ class TestTogglServerUnit:
             start_time="2024-01-01T10:00:00Z",
             duration_minutes=90,
             project_id=222,
+            task_id=1002,
             tags=["development"],
             billable=True
         )
@@ -272,7 +277,7 @@ class TestTogglServerUnit:
         assert result["id"] == 123
         assert result["description"] == "Completed task"
         assert result["duration"] == 5400
-        assert result["billable"] == True
+        assert result["billable"]
         assert result["tags"] == ["development"]
 
     async def test_get_time_entry_found(self, mock_server: TogglServer):
@@ -330,6 +335,7 @@ class TestTogglServerUnit:
             time_entry_id=789,
             description="Updated task",
             duration_minutes=120,
+            task_id=1003,
             tags=["updated"],
             billable=False
         )
@@ -347,7 +353,7 @@ class TestTogglServerUnit:
         
         result = await delete_time_entry.fn(time_entry_id=555)
         
-        assert result["success"] == True
+        assert result["success"]
         assert "deleted" in result["message"]
 
     async def test_delete_time_entry_failure(self, mock_server: TogglServer):
@@ -359,7 +365,163 @@ class TestTogglServerUnit:
         
         result = await delete_time_entry.fn(time_entry_id=999)
         
-        assert result["success"] == False
+        assert not result["success"]
+        assert "Failed to delete" in result["message"]
+
+    async def test_get_tasks(self, mock_server: TogglServer):
+        """Test getting tasks through MCP tool."""
+        mock_tasks = [
+            Task(
+                id=1001,
+                name="Design mockups",
+                project_id=111,
+                workspace_id=12345,
+                active=True,
+                estimated_seconds=7200,
+                tracked_seconds=3600
+            ),
+            Task(
+                id=1002,
+                name="Code review",
+                project_id=111,
+                workspace_id=12345,
+                active=True,
+                estimated_seconds=None,
+                tracked_seconds=1800
+            )
+        ]
+        
+        mock_server.task_service.get_tasks.return_value = mock_tasks
+        
+        tools = mock_server.mcp._tool_manager._tools
+        get_tasks = tools["get_tasks"]
+        
+        result = await get_tasks.fn(project_id=111, active=True)
+        
+        assert len(result) == 2
+        assert result[0]["id"] == 1001
+        assert result[0]["name"] == "Design mockups"
+        assert result[1]["id"] == 1002
+        assert result[1]["name"] == "Code review"
+
+    async def test_get_task(self, mock_server: TogglServer):
+        """Test getting a specific task through MCP tool."""
+        mock_task = Task(
+            id=1001,
+            name="Design mockups",
+            project_id=111,
+            workspace_id=12345,
+            active=True,
+            estimated_seconds=7200,
+            tracked_seconds=3600
+        )
+        
+        mock_server.task_service.get_task.return_value = mock_task
+        
+        tools = mock_server.mcp._tool_manager._tools
+        get_task = tools["get_task"]
+        
+        result = await get_task.fn(project_id=111, task_id=1001)
+        
+        assert result["id"] == 1001
+        assert result["name"] == "Design mockups"
+        assert result["estimated_seconds"] == 7200
+
+    async def test_get_task_not_found(self, mock_server: TogglServer):
+        """Test getting a task that doesn't exist."""
+        mock_server.task_service.get_task.return_value = None
+        
+        tools = mock_server.mcp._tool_manager._tools
+        get_task = tools["get_task"]
+        
+        result = await get_task.fn(project_id=111, task_id=999)
+        
+        assert "error" in result
+        assert result["error"] == "Task not found"
+
+    async def test_create_task(self, mock_server: TogglServer):
+        """Test creating a new task through MCP tool."""
+        mock_task = Task(
+            id=1003,
+            name="New feature implementation",
+            project_id=111,
+            workspace_id=12345,
+            active=True,
+            estimated_seconds=14400,
+            tracked_seconds=0
+        )
+        
+        mock_server.task_service.create_task.return_value = mock_task
+        
+        tools = mock_server.mcp._tool_manager._tools
+        create_task = tools["create_task"]
+        
+        result = await create_task.fn(
+            project_id=111,
+            name="New feature implementation",
+            estimated_hours=4.0,
+            active=True
+        )
+        
+        assert result["id"] == 1003
+        assert result["name"] == "New feature implementation"
+        assert result["estimated_seconds"] == 14400
+        mock_server.task_service.create_task.assert_called_once_with(
+            111, "New feature implementation", 14400, True
+        )
+
+    async def test_update_task(self, mock_server: TogglServer):
+        """Test updating an existing task through MCP tool."""
+        updated_task = Task(
+            id=1001,
+            name="Updated task name",
+            project_id=111,
+            workspace_id=12345,
+            active=False,
+            estimated_seconds=10800,
+            tracked_seconds=3600
+        )
+        
+        mock_server.task_service.update_task.return_value = updated_task
+        
+        tools = mock_server.mcp._tool_manager._tools
+        update_task = tools["update_task"]
+        
+        result = await update_task.fn(
+            project_id=111,
+            task_id=1001,
+            name="Updated task name",
+            estimated_hours=3.0,
+            active=False
+        )
+        
+        assert result["id"] == 1001
+        assert result["name"] == "Updated task name"
+        assert not result["active"]
+        assert result["estimated_seconds"] == 10800
+
+    async def test_delete_task_success(self, mock_server: TogglServer):
+        """Test successfully deleting a task through MCP tool."""
+        mock_server.task_service.delete_task.return_value = True
+        
+        tools = mock_server.mcp._tool_manager._tools
+        delete_task = tools["delete_task"]
+        
+        result = await delete_task.fn(project_id=111, task_id=1001)
+        
+        assert result["success"]
+        assert "deleted successfully" in result["message"]
+
+    async def test_delete_task_failure(self, mock_server: TogglServer):
+        """Test failed task deletion through MCP tool."""
+        mock_server.task_service.delete_task.return_value = False
+        
+        tools = mock_server.mcp._tool_manager._tools
+        delete_task = tools["delete_task"]
+        
+        result = await delete_task.fn(project_id=111, task_id=999)
+        
+        assert not result["success"]
         assert "Failed to delete" in result["message"]
 
 

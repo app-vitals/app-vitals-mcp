@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import httpx
 
-from .models import TimeEntry, Project, Workspace
+from .models import TimeEntry, Project, Workspace, Task
 
 
 class TogglClient:
@@ -52,8 +52,8 @@ class TogglClient:
     
     async def create_time_entry(self, workspace_id: int, description: str = "", 
                                start: Optional[str] = None, duration: Optional[int] = None,
-                               project_id: Optional[int] = None, tags: Optional[List[str]] = None,
-                               billable: bool = False) -> TimeEntry:
+                               project_id: Optional[int] = None, task_id: Optional[int] = None,
+                               tags: Optional[List[str]] = None, billable: bool = False) -> TimeEntry:
         """Create a new time entry."""
         payload = {
             "description": description,
@@ -67,6 +67,8 @@ class TogglClient:
             payload["duration"] = duration
         if project_id:
             payload["project_id"] = project_id
+        if task_id:
+            payload["task_id"] = task_id
         if tags:
             payload["tags"] = tags
             
@@ -78,6 +80,7 @@ class TogglClient:
         return TimeEntry(**response.json())
 
     async def start_time_entry(self, description: str, project_id: Optional[int] = None, 
+                              task_id: Optional[int] = None,
                               workspace_id: Optional[int] = None, tags: Optional[List[str]] = None) -> TimeEntry:
         """Start a new time entry (running timer)."""
         payload = {
@@ -90,6 +93,8 @@ class TogglClient:
         
         if project_id:
             payload["project_id"] = project_id
+        if task_id:
+            payload["task_id"] = task_id
         if tags:
             payload["tags"] = tags
             
@@ -103,6 +108,7 @@ class TogglClient:
     async def update_time_entry(self, workspace_id: int, time_entry_id: int, 
                                description: Optional[str] = None, start: Optional[str] = None,
                                duration: Optional[int] = None, project_id: Optional[int] = None,
+                               task_id: Optional[int] = None,
                                tags: Optional[List[str]] = None, billable: Optional[bool] = None) -> TimeEntry:
         """Update an existing time entry."""
         payload = {}
@@ -115,6 +121,8 @@ class TogglClient:
             payload["duration"] = duration
         if project_id is not None:
             payload["project_id"] = project_id
+        if task_id is not None:
+            payload["task_id"] = task_id
         if tags is not None:
             payload["tags"] = tags
         if billable is not None:
@@ -162,6 +170,79 @@ class TogglClient:
                 # Handle empty response or invalid JSON
                 pass
         return None
+    
+    # Tasks API methods
+    async def get_tasks(self, workspace_id: int, project_id: Optional[int] = None, 
+                       active: Optional[bool] = None) -> List[Task]:
+        """Get tasks for a workspace, optionally filtered by project and active status."""
+        if project_id:
+            # Get tasks for a specific project
+            url = f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}/tasks"
+        else:
+            # Get all tasks in workspace (this might need different endpoint)
+            url = f"{self.base_url}/workspaces/{workspace_id}/tasks"
+        
+        params = {}
+        if active is not None:
+            params["active"] = "true" if active else "false"
+            
+        response = await self.client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        return [Task(**task) for task in data]
+    
+    async def get_task(self, workspace_id: int, project_id: int, task_id: int) -> Optional[Task]:
+        """Get a specific task."""
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}"
+        )
+        if response.status_code == 200:
+            return Task(**response.json())
+        return None
+    
+    async def create_task(self, workspace_id: int, project_id: int, name: str, 
+                         estimated_seconds: Optional[int] = None, active: bool = True) -> Task:
+        """Create a new task."""
+        payload = {
+            "name": name,
+            "active": active
+        }
+        if estimated_seconds is not None:
+            payload["estimated_seconds"] = estimated_seconds
+            
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}/tasks",
+            json=payload
+        )
+        response.raise_for_status()
+        return Task(**response.json())
+    
+    async def update_task(self, workspace_id: int, project_id: int, task_id: int,
+                         name: Optional[str] = None, estimated_seconds: Optional[int] = None,
+                         active: Optional[bool] = None) -> Task:
+        """Update an existing task."""
+        payload = {}
+        if name is not None:
+            payload["name"] = name
+        if estimated_seconds is not None:
+            payload["estimated_seconds"] = estimated_seconds
+        if active is not None:
+            payload["active"] = active
+            
+        response = await self.client.put(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}",
+            json=payload
+        )
+        response.raise_for_status()
+        return Task(**response.json())
+    
+    async def delete_task(self, workspace_id: int, project_id: int, task_id: int) -> bool:
+        """Delete a task."""
+        response = await self.client.delete(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}/tasks/{task_id}"
+        )
+        response.raise_for_status()
+        return response.status_code == 200
     
     async def close(self):
         """Close the HTTP client."""
