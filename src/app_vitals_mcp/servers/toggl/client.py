@@ -1,7 +1,7 @@
 """Low-level Toggl API client."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import httpx
 
@@ -55,7 +55,7 @@ class TogglClient:
                                project_id: Optional[int] = None, task_id: Optional[int] = None,
                                tags: Optional[List[str]] = None, billable: bool = False) -> TimeEntry:
         """Create a new time entry."""
-        payload = {
+        payload: Dict[str, Any] = {
             "description": description,
             "start": start or datetime.utcnow().isoformat() + "Z",
             "created_with": "mcp-server-toggl",
@@ -83,7 +83,7 @@ class TogglClient:
                               task_id: Optional[int] = None,
                               workspace_id: Optional[int] = None, tags: Optional[List[str]] = None) -> TimeEntry:
         """Start a new time entry (running timer)."""
-        payload = {
+        payload: Dict[str, Any] = {
             "description": description,
             "start": datetime.utcnow().isoformat() + "Z",
             "created_with": "mcp-server-toggl",
@@ -111,7 +111,7 @@ class TogglClient:
                                task_id: Optional[int] = None,
                                tags: Optional[List[str]] = None, billable: Optional[bool] = None) -> TimeEntry:
         """Update an existing time entry."""
-        payload = {}
+        payload: Dict[str, Any] = {}
         
         if description is not None:
             payload["description"] = description
@@ -203,7 +203,7 @@ class TogglClient:
     async def create_task(self, workspace_id: int, project_id: int, name: str, 
                          estimated_seconds: Optional[int] = None, active: bool = True) -> Task:
         """Create a new task."""
-        payload = {
+        payload: Dict[str, Any] = {
             "name": name,
             "active": active
         }
@@ -221,7 +221,7 @@ class TogglClient:
                          name: Optional[str] = None, estimated_seconds: Optional[int] = None,
                          active: Optional[bool] = None) -> Task:
         """Update an existing task."""
-        payload = {}
+        payload: Dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if estimated_seconds is not None:

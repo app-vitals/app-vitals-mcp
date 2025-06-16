@@ -1,6 +1,6 @@
 # App Vitals MCP
 
-A collection of MCP servers built with FastMCP for monitoring application vitals and productivity metrics.
+A collection of MCP servers built with FastMCP.
 
 ## Servers
 
@@ -13,7 +13,7 @@ A collection of MCP servers built with FastMCP for monitoring application vitals
 uv sync
 
 # Install in development mode
-uv pip install -e .
+pip install -e .
 ```
 
 ## Usage

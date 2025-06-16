@@ -15,7 +15,7 @@ class TogglServer:
     def __init__(self, config: TogglConfig):
         self.config = config
         self.client = TogglClient(config.api_token)
-        self.mcp = FastMCP("Toggl Time Tracking Server")
+        self.mcp: FastMCP = FastMCP("Toggl Time Tracking Server")
         
         # Initialize services
         self.timer_service = TimerService(self.client, config.workspace_id)
@@ -209,7 +209,7 @@ class TogglServer:
                 tasks = await self.task_service.get_tasks(project_id, active)
                 return [task.model_dump() for task in tasks]
             except ValueError as e:
-                return {"error": str(e)}
+                return [{"error": str(e)}]
         
         @self.mcp.tool()
         async def get_task(project_id: int, task_id: int) -> Dict[str, Any]:
