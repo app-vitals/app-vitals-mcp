@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 from app_vitals_mcp.servers.toggl.config import TogglConfig
 from app_vitals_mcp.servers.toggl.client import TogglClient
+from app_vitals_mcp.servers.trello.config import TrelloConfig
+from app_vitals_mcp.servers.trello.client import TrelloClient
 
 
 # Load environment variables from .env file
@@ -61,6 +63,47 @@ async def real_toggl_client(real_api_token: Optional[str]):
         return
     
     client = TogglClient(real_api_token)
+    yield client
+    await client.close()
+
+
+@pytest.fixture
+def mock_trello_config() -> TrelloConfig:
+    """Mock Trello configuration for testing."""
+    return TrelloConfig(
+        api_key="test_api_key",
+        token="test_token"
+    )
+
+
+@pytest.fixture
+def real_trello_config() -> Optional[TrelloConfig]:
+    """Real Trello configuration from environment (if available)."""
+    api_key = os.getenv("TRELLO_API_KEY")
+    token = os.getenv("TRELLO_TOKEN")
+    
+    if not api_key or not token:
+        return None
+    
+    return TrelloConfig(api_key=api_key, token=token)
+
+
+@pytest_asyncio.fixture
+async def mock_trello_client(mock_trello_config: TrelloConfig) -> TrelloClient:
+    """Mock Trello client for testing."""
+    client = TrelloClient(mock_trello_config.api_key, mock_trello_config.token)
+    yield client
+    await client.close()
+
+
+@pytest_asyncio.fixture
+async def real_trello_client(real_trello_config: Optional[TrelloConfig]):
+    """Real Trello client (if credentials are available)."""
+    if not real_trello_config:
+        yield None
+        return
+    
+    client = TrelloClient(real_trello_config.api_key, real_trello_config.token)
     yield client
     await client.close()
 

@@ -5,6 +5,7 @@ A collection of MCP servers built with FastMCP.
 ## Servers
 
 - **Toggl Server** - Time tracking and productivity monitoring via Toggl API
+- **Trello Server** - Card management and board operations via Trello API
 
 ## Installation
 
@@ -23,6 +24,9 @@ Each server can be run independently:
 ```bash
 # Toggl server
 mcp-server-toggl
+
+# Trello server
+mcp-server-trello
 ```
 
 ## Development

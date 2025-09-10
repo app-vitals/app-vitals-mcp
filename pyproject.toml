@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 mcp-server-toggl = "app_vitals_mcp.servers.toggl.main:main"
+mcp-server-trello = "app_vitals_mcp.servers.trello.main:main"
 
 [build-system]
 requires = ["hatchling"]
