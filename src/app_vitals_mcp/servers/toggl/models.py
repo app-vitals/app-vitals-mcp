@@ -31,6 +31,8 @@ class Project(BaseModel):
     client_id: Optional[int] = None
     active: bool = True
     color: str = "#3750b5"
+    billable: Optional[bool] = None
+    is_private: bool = False
 
 
 class Task(BaseModel):

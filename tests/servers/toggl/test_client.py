@@ -736,3 +736,116 @@ class TestTogglClient:
 
         assert isinstance(result, Client)
         assert result.id == client_id
+
+    @respx.mock
+    async def test_get_project(self, mock_toggl_client: TogglClient):
+        """Test getting a specific project."""
+        workspace_id = 12345
+        project_id = 3001
+        mock_response = {
+            "id": project_id,
+            "name": "Test Project",
+            "workspace_id": workspace_id,
+            "active": True,
+            "color": "#3750b5",
+            "billable": True,
+            "is_private": False,
+            "client_id": 2001
+        }
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_project(workspace_id, project_id)
+
+        assert result is not None
+        assert isinstance(result, Project)
+        assert result.id == project_id
+        assert result.name == "Test Project"
+        assert result.billable is True
+
+    @respx.mock
+    async def test_create_project(self, mock_toggl_client: TogglClient):
+        """Test creating a new project."""
+        workspace_id = 12345
+        mock_response = {
+            "id": 3002,
+            "name": "New Project",
+            "workspace_id": workspace_id,
+            "active": True,
+            "color": "#06aaf5",
+            "billable": False,
+            "is_private": False,
+            "client_id": None
+        }
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.create_project(
+            workspace_id=workspace_id,
+            name="New Project",
+            color="#06aaf5",
+            billable=False
+        )
+
+        assert result.id == 3002
+        assert result.name == "New Project"
+        assert result.color == "#06aaf5"
+        assert result.billable is False
+
+    @respx.mock
+    async def test_update_project(self, mock_toggl_client: TogglClient):
+        """Test updating an existing project."""
+        workspace_id = 12345
+        project_id = 3001
+        mock_response = {
+            "id": project_id,
+            "name": "Updated Project",
+            "workspace_id": workspace_id,
+            "active": False,
+            "color": "#c56bff",
+            "billable": True,
+            "is_private": True,
+            "client_id": 2002
+        }
+
+        respx.put(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.update_project(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            name="Updated Project",
+            active=False,
+            color="#c56bff",
+            billable=True,
+            is_private=True,
+            client_id=2002
+        )
+
+        assert result.id == project_id
+        assert result.name == "Updated Project"
+        assert result.active is False
+        assert result.color == "#c56bff"
+        assert result.billable is True
+        assert result.is_private is True
+
+    @respx.mock
+    async def test_delete_project(self, mock_toggl_client: TogglClient):
+        """Test deleting a project."""
+        workspace_id = 12345
+        project_id = 3001
+
+        respx.delete(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects/{project_id}").respond(
+            status_code=200
+        )
+
+        result = await mock_toggl_client.delete_project(workspace_id, project_id)
+        assert result

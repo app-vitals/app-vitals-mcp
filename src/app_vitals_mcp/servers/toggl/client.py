@@ -244,6 +244,98 @@ class TogglClient:
         response.raise_for_status()
         return response.status_code == 200
 
+    # Projects API methods
+    async def get_project(self, workspace_id: int, project_id: int) -> Optional[Project]:
+        """Get a specific project."""
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}"
+        )
+        if response.status_code == 200:
+            return Project(**response.json())
+        return None
+
+    async def create_project(self, workspace_id: int, name: str,
+                           active: bool = True, color: str = "#3750b5",
+                           client_id: Optional[int] = None,
+                           billable: Optional[bool] = None,
+                           is_private: bool = False) -> Project:
+        """Create a new project.
+
+        Args:
+            workspace_id: The workspace ID
+            name: Project name (required)
+            active: Whether the project is active (default: True)
+            color: Project color in hex format (default: "#3750b5")
+            client_id: Optional client ID to associate with project
+            billable: Whether the project is billable
+            is_private: Whether the project is private (default: False)
+        """
+        payload: Dict[str, Any] = {
+            "name": name,
+            "active": active,
+            "color": color,
+            "is_private": is_private
+        }
+        if client_id is not None:
+            payload["client_id"] = client_id
+        if billable is not None:
+            payload["billable"] = billable
+
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/projects",
+            json=payload
+        )
+        response.raise_for_status()
+        return Project(**response.json())
+
+    async def update_project(self, workspace_id: int, project_id: int,
+                           name: Optional[str] = None,
+                           active: Optional[bool] = None,
+                           color: Optional[str] = None,
+                           client_id: Optional[int] = None,
+                           billable: Optional[bool] = None,
+                           is_private: Optional[bool] = None) -> Project:
+        """Update an existing project.
+
+        Args:
+            workspace_id: The workspace ID
+            project_id: The project ID
+            name: New project name
+            active: Whether the project is active
+            color: New project color in hex format
+            client_id: New client ID (use -1 to remove client)
+            billable: Whether the project is billable
+            is_private: Whether the project is private
+        """
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if active is not None:
+            payload["active"] = active
+        if color is not None:
+            payload["color"] = color
+        if client_id is not None:
+            payload["client_id"] = client_id
+        if billable is not None:
+            payload["billable"] = billable
+        if is_private is not None:
+            payload["is_private"] = is_private
+
+        response = await self.client.put(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}",
+            json=payload
+        )
+        response.raise_for_status()
+        return Project(**response.json())
+
+    async def delete_project(self, workspace_id: int, project_id: int) -> bool:
+        """Delete a project."""
+        response = await self.client.delete(
+            f"{self.base_url}/workspaces/{workspace_id}/projects/{project_id}"
+        )
+        response.raise_for_status()
+        return response.status_code == 200
+
     # Clients API methods
     async def get_clients(self, workspace_id: int, status: Optional[str] = None,
                          name: Optional[str] = None) -> List[Client]:

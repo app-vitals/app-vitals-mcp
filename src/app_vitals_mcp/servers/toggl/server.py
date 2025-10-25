@@ -12,6 +12,7 @@ from .services import (
     AnalyticsService,
     WorkspaceService,
     TaskService,
+    ProjectService,
     ClientService,
 )
 
@@ -30,6 +31,7 @@ class TogglServer:
         self.analytics_service = AnalyticsService(self.client)
         self.workspace_service = WorkspaceService(self.client)
         self.task_service = TaskService(self.client, config.workspace_id)
+        self.project_service = ProjectService(self.client, config.workspace_id)
         self.client_service = ClientService(self.client, config.workspace_id)
         
         self._setup_tools()
@@ -41,6 +43,7 @@ class TogglServer:
         self._setup_analytics_tools()
         self._setup_workspace_tools()
         self._setup_task_tools()
+        self._setup_project_tools()
         self._setup_client_tools()
     
     def _setup_timer_tools(self):
@@ -296,6 +299,90 @@ class TogglServer:
                 if success:
                     return {"success": True, "message": f"Task {task_id} deleted successfully"}
                 return {"success": False, "message": f"Failed to delete task {task_id}"}
+            except ValueError as e:
+                return {"error": str(e)}
+
+    def _setup_project_tools(self):
+        """Set up project management tools."""
+
+        @self.mcp.tool()
+        async def toggl_get_project(project_id: int) -> Dict[str, Any]:
+            """Get details of a specific project.
+
+            Args:
+                project_id: ID of the project to retrieve
+            """
+            try:
+                project = await self.project_service.get_project(project_id)
+                if project:
+                    return project.model_dump()
+                return {"error": "Project not found"}
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_create_project(name: str, active: bool = True,
+                                 color: str = "#3750b5",
+                                 client_id: Optional[int] = None,
+                                 billable: Optional[bool] = None,
+                                 is_private: bool = False) -> Dict[str, Any]:
+            """Create a new project.
+
+            Args:
+                name: Project name (required)
+                active: Whether the project is active (default: True)
+                color: Project color in hex format (default: "#3750b5")
+                client_id: Optional client ID to associate with project
+                billable: Whether the project is billable
+                is_private: Whether the project is private (default: False)
+            """
+            try:
+                project = await self.project_service.create_project(
+                    name, active, color, client_id, billable, is_private
+                )
+                return project.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_update_project(project_id: int,
+                                 name: Optional[str] = None,
+                                 active: Optional[bool] = None,
+                                 color: Optional[str] = None,
+                                 client_id: Optional[int] = None,
+                                 billable: Optional[bool] = None,
+                                 is_private: Optional[bool] = None) -> Dict[str, Any]:
+            """Update an existing project.
+
+            Args:
+                project_id: ID of the project to update
+                name: New project name (optional)
+                active: Whether the project is active (optional)
+                color: New project color in hex format (optional)
+                client_id: New client ID (optional, use -1 to remove client)
+                billable: Whether the project is billable (optional)
+                is_private: Whether the project is private (optional)
+            """
+            try:
+                project = await self.project_service.update_project(
+                    project_id, name, active, color, client_id, billable, is_private
+                )
+                return project.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_delete_project(project_id: int) -> Dict[str, Any]:
+            """Delete a project.
+
+            Args:
+                project_id: ID of the project to delete
+            """
+            try:
+                success = await self.project_service.delete_project(project_id)
+                if success:
+                    return {"success": True, "message": f"Project {project_id} deleted successfully"}
+                return {"success": False, "message": f"Failed to delete project {project_id}"}
             except ValueError as e:
                 return {"error": str(e)}
 

@@ -252,6 +252,93 @@ class TaskService:
         return await self.client.delete_task(workspace_id, project_id, task_id)
 
 
+class ProjectService:
+    """Service for project management."""
+
+    def __init__(self, client: TogglClient, workspace_id: Optional[int] = None):
+        self.client = client
+        self.default_workspace_id = workspace_id
+
+    async def _get_workspace_id(self) -> Optional[int]:
+        """Get workspace ID (from config or first available)."""
+        if self.default_workspace_id:
+            return self.default_workspace_id
+
+        workspaces = await self.client.get_workspaces()
+        return workspaces[0].id if workspaces else None
+
+    async def get_projects(self, workspace_id: Optional[int] = None) -> List[Project]:
+        """Get all projects for a workspace."""
+        if workspace_id is None:
+            workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.get_projects(workspace_id)
+
+    async def get_project(self, project_id: int) -> Optional[Project]:
+        """Get a specific project."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.get_project(workspace_id, project_id)
+
+    async def create_project(self, name: str, active: bool = True,
+                           color: str = "#3750b5", client_id: Optional[int] = None,
+                           billable: Optional[bool] = None,
+                           is_private: bool = False) -> Project:
+        """Create a new project.
+
+        Args:
+            name: Project name (required)
+            active: Whether the project is active (default: True)
+            color: Project color in hex format (default: "#3750b5")
+            client_id: Optional client ID to associate with project
+            billable: Whether the project is billable
+            is_private: Whether the project is private (default: False)
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.create_project(
+            workspace_id, name, active, color, client_id, billable, is_private
+        )
+
+    async def update_project(self, project_id: int, name: Optional[str] = None,
+                           active: Optional[bool] = None, color: Optional[str] = None,
+                           client_id: Optional[int] = None,
+                           billable: Optional[bool] = None,
+                           is_private: Optional[bool] = None) -> Project:
+        """Update an existing project.
+
+        Args:
+            project_id: The project ID
+            name: New project name
+            active: Whether the project is active
+            color: New project color in hex format
+            client_id: New client ID (use -1 to remove client)
+            billable: Whether the project is billable
+            is_private: Whether the project is private
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.update_project(
+            workspace_id, project_id, name, active, color, client_id, billable, is_private
+        )
+
+    async def delete_project(self, project_id: int) -> bool:
+        """Delete a project."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.delete_project(workspace_id, project_id)
+
+
 class ClientService:
     """Service for client management."""
 

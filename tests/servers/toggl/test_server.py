@@ -36,6 +36,10 @@ class TestTogglServerUnit:
         server.task_service.create_task = AsyncMock()
         server.task_service.update_task = AsyncMock()
         server.task_service.delete_task = AsyncMock()
+        server.project_service.get_project = AsyncMock()
+        server.project_service.create_project = AsyncMock()
+        server.project_service.update_project = AsyncMock()
+        server.project_service.delete_project = AsyncMock()
         server.client_service.get_clients = AsyncMock()
         server.client_service.get_client = AsyncMock()
         server.client_service.create_client = AsyncMock()
@@ -528,6 +532,126 @@ class TestTogglServerUnit:
         
         result = await delete_task.fn(project_id=111, task_id=999)
         
+        assert not result["success"]
+        assert "Failed to delete" in result["message"]
+
+    async def test_get_project(self, mock_server: TogglServer):
+        """Test getting a specific project through MCP tool."""
+        mock_project = Project(
+            id=3001,
+            name="Test Project",
+            workspace_id=12345,
+            active=True,
+            color="#3750b5",
+            billable=True,
+            is_private=False
+        )
+
+        mock_server.project_service.get_project.return_value = mock_project
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_project = tools["toggl_get_project"]
+
+        result = await get_project.fn(project_id=3001)
+
+        assert result["id"] == 3001
+        assert result["name"] == "Test Project"
+        assert result["billable"] is True
+
+    async def test_get_project_not_found(self, mock_server: TogglServer):
+        """Test getting a project that doesn't exist."""
+        mock_server.project_service.get_project.return_value = None
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_project = tools["toggl_get_project"]
+
+        result = await get_project.fn(project_id=999)
+
+        assert "error" in result
+        assert result["error"] == "Project not found"
+
+    async def test_create_project(self, mock_server: TogglServer):
+        """Test creating a new project through MCP tool."""
+        mock_project = Project(
+            id=3002,
+            name="New Project",
+            workspace_id=12345,
+            active=True,
+            color="#06aaf5",
+            billable=False,
+            is_private=False
+        )
+
+        mock_server.project_service.create_project.return_value = mock_project
+
+        tools = mock_server.mcp._tool_manager._tools
+        create_project = tools["toggl_create_project"]
+
+        result = await create_project.fn(
+            name="New Project",
+            color="#06aaf5",
+            billable=False
+        )
+
+        assert result["id"] == 3002
+        assert result["name"] == "New Project"
+        assert result["color"] == "#06aaf5"
+        mock_server.project_service.create_project.assert_called_once_with(
+            "New Project", True, "#06aaf5", None, False, False
+        )
+
+    async def test_update_project(self, mock_server: TogglServer):
+        """Test updating an existing project through MCP tool."""
+        updated_project = Project(
+            id=3001,
+            name="Updated Project",
+            workspace_id=12345,
+            active=False,
+            color="#c56bff",
+            billable=True,
+            is_private=True
+        )
+
+        mock_server.project_service.update_project.return_value = updated_project
+
+        tools = mock_server.mcp._tool_manager._tools
+        update_project = tools["toggl_update_project"]
+
+        result = await update_project.fn(
+            project_id=3001,
+            name="Updated Project",
+            active=False,
+            color="#c56bff",
+            billable=True,
+            is_private=True
+        )
+
+        assert result["id"] == 3001
+        assert result["name"] == "Updated Project"
+        assert result["active"] is False
+        assert result["color"] == "#c56bff"
+
+    async def test_delete_project_success(self, mock_server: TogglServer):
+        """Test successfully deleting a project through MCP tool."""
+        mock_server.project_service.delete_project.return_value = True
+
+        tools = mock_server.mcp._tool_manager._tools
+        delete_project = tools["toggl_delete_project"]
+
+        result = await delete_project.fn(project_id=3001)
+
+        assert result["success"]
+        assert "deleted successfully" in result["message"]
+
+    async def test_delete_project_failure(self, mock_server: TogglServer):
+        """Test failed project deletion through MCP tool."""
+        mock_server.project_service.delete_project.return_value = False
+
+        tools = mock_server.mcp._tool_manager._tools
+        delete_project = tools["toggl_delete_project"]
+
+        result = await delete_project.fn(project_id=999)
+
         assert not result["success"]
         assert "Failed to delete" in result["message"]
 

@@ -317,6 +317,65 @@ class TestTogglIntegration:
         # Wait at end to avoid rate limiting on next test
         await asyncio.sleep(1)
 
+    async def test_project_management_workflow(self, integration_server: TogglServer):
+        """Test complete project management workflow."""
+        tools = integration_server.mcp._tool_manager._tools
+
+        # Use timestamp to ensure unique project name
+        timestamp = datetime.utcnow().isoformat()
+        project_name = f"Test Project {timestamp}"
+
+        # Create a test project
+        create_result = await tools["toggl_create_project"].fn(
+            name=project_name,
+            color="#06aaf5",
+            billable=True
+        )
+        assert "id" in create_result
+        assert create_result["name"] == project_name
+        assert create_result["color"] == "#06aaf5"
+        assert create_result["billable"] is True
+
+        project_id = create_result["id"]
+
+        # Get the project to verify it was created
+        get_result = await tools["toggl_get_project"].fn(project_id=project_id)
+        assert get_result["id"] == project_id
+        assert get_result["name"] == project_name
+
+        # Update the project
+        updated_name = f"Updated {project_name}"
+        update_result = await tools["toggl_update_project"].fn(
+            project_id=project_id,
+            name=updated_name,
+            color="#c56bff",
+            billable=False,
+            active=False
+        )
+        assert update_result["id"] == project_id
+        assert update_result["name"] == updated_name
+        assert update_result["color"] == "#c56bff"
+        assert update_result["billable"] is False
+        assert update_result["active"] is False
+
+        # Get all projects and find our test project
+        projects_result = await tools["toggl_get_projects"].fn()
+        assert isinstance(projects_result, list)
+        our_project = next((p for p in projects_result if p["id"] == project_id), None)
+        assert our_project is not None
+        assert our_project["name"] == updated_name
+
+        # Delete the test project (cleanup)
+        delete_result = await tools["toggl_delete_project"].fn(project_id=project_id)
+        assert delete_result["success"]
+
+        # Verify deletion
+        verify_result = await tools["toggl_get_project"].fn(project_id=project_id)
+        assert "error" in verify_result
+
+        # Wait at end to avoid rate limiting on next test
+        await asyncio.sleep(1)
+
 
 def test_environment_setup():
     """Test that environment variables are properly configured."""
