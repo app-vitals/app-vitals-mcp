@@ -5,7 +5,7 @@ import respx
 import httpx
 
 from app_vitals_mcp.servers.toggl.client import TogglClient
-from app_vitals_mcp.servers.toggl.models import TimeEntry, Project, Workspace, Task
+from app_vitals_mcp.servers.toggl.models import TimeEntry, Project, Workspace, Task, Client
 
 
 @pytest.mark.unit
@@ -485,3 +485,254 @@ class TestTogglClient:
         
         result = await mock_toggl_client.delete_task(workspace_id, project_id, task_id)
         assert result
+
+    @respx.mock
+    async def test_get_clients(self, mock_toggl_client: TogglClient):
+        """Test getting clients for a workspace."""
+        workspace_id = 12345
+        mock_response = [
+            {
+                "id": 2001,
+                "name": "Acme Corp",
+                "wid": workspace_id,
+                "archived": False,
+                "notes": "Main client",
+                "external_reference": "EXT-001",
+                "at": "2024-01-01T10:00:00Z",
+                "creator_id": 123
+            },
+            {
+                "id": 2002,
+                "name": "Tech Startup",
+                "wid": workspace_id,
+                "archived": True,
+                "notes": None,
+                "external_reference": None,
+                "at": "2024-01-02T10:00:00Z",
+                "creator_id": 123
+            }
+        ]
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_clients(workspace_id)
+
+        assert len(result) == 2
+        assert isinstance(result[0], Client)
+        assert result[0].id == 2001
+        assert result[0].name == "Acme Corp"
+        assert result[0].archived is False
+        assert result[0].notes == "Main client"
+
+    @respx.mock
+    async def test_get_clients_with_filters(self, mock_toggl_client: TogglClient):
+        """Test getting clients with status and name filters."""
+        workspace_id = 12345
+        mock_response = [
+            {
+                "id": 2001,
+                "name": "Acme Corp",
+                "wid": workspace_id,
+                "archived": False,
+                "notes": None,
+                "external_reference": None
+            }
+        ]
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_clients(workspace_id, status="active", name="Acme")
+
+        assert len(result) == 1
+        assert result[0].name == "Acme Corp"
+
+    @respx.mock
+    async def test_get_client(self, mock_toggl_client: TogglClient):
+        """Test getting a specific client."""
+        workspace_id = 12345
+        client_id = 2001
+        mock_response = {
+            "id": client_id,
+            "name": "Acme Corp",
+            "wid": workspace_id,
+            "archived": False,
+            "notes": "Main client",
+            "external_reference": "EXT-001",
+            "at": "2024-01-01T10:00:00Z",
+            "creator_id": 123
+        }
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_client(workspace_id, client_id)
+
+        assert result is not None
+        assert isinstance(result, Client)
+        assert result.id == client_id
+        assert result.name == "Acme Corp"
+        assert result.notes == "Main client"
+
+    @respx.mock
+    async def test_create_client(self, mock_toggl_client: TogglClient):
+        """Test creating a new client."""
+        workspace_id = 12345
+        mock_response = {
+            "id": 2003,
+            "name": "New Client Ltd",
+            "wid": workspace_id,
+            "archived": False,
+            "notes": "New business partner",
+            "external_reference": "EXT-003",
+            "at": "2024-01-03T10:00:00Z",
+            "creator_id": 123
+        }
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.create_client(
+            workspace_id=workspace_id,
+            name="New Client Ltd",
+            notes="New business partner",
+            external_reference="EXT-003"
+        )
+
+        assert result.id == 2003
+        assert result.name == "New Client Ltd"
+        assert result.notes == "New business partner"
+        assert result.external_reference == "EXT-003"
+
+    @respx.mock
+    async def test_update_client(self, mock_toggl_client: TogglClient):
+        """Test updating an existing client."""
+        workspace_id = 12345
+        client_id = 2001
+        mock_response = {
+            "id": client_id,
+            "name": "Updated Client Name",
+            "wid": workspace_id,
+            "archived": False,
+            "notes": "Updated notes",
+            "external_reference": "EXT-UPDATED",
+            "at": "2024-01-04T10:00:00Z",
+            "creator_id": 123
+        }
+
+        respx.put(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.update_client(
+            workspace_id=workspace_id,
+            client_id=client_id,
+            name="Updated Client Name",
+            notes="Updated notes",
+            external_reference="EXT-UPDATED"
+        )
+
+        assert result.id == client_id
+        assert result.name == "Updated Client Name"
+        assert result.notes == "Updated notes"
+        assert result.external_reference == "EXT-UPDATED"
+
+    @respx.mock
+    async def test_delete_client(self, mock_toggl_client: TogglClient):
+        """Test deleting a client."""
+        workspace_id = 12345
+        client_id = 2001
+
+        respx.delete(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}").respond(
+            status_code=200
+        )
+
+        result = await mock_toggl_client.delete_client(workspace_id, client_id)
+        assert result
+
+    @respx.mock
+    async def test_archive_client(self, mock_toggl_client: TogglClient):
+        """Test archiving a client."""
+        workspace_id = 12345
+        client_id = 2001
+        mock_response = [111, 222]  # Archived project IDs
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}/archive").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.archive_client(workspace_id, client_id)
+        assert result == [111, 222]
+
+    @respx.mock
+    async def test_restore_client(self, mock_toggl_client: TogglClient):
+        """Test restoring an archived client."""
+        workspace_id = 12345
+        client_id = 2001
+        mock_response = {
+            "id": client_id,
+            "name": "Restored Client",
+            "wid": workspace_id,
+            "archived": False,
+            "notes": "Restored",
+            "external_reference": None,
+            "at": "2024-01-05T10:00:00Z",
+            "creator_id": 123
+        }
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}/restore").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.restore_client(
+            workspace_id=workspace_id,
+            client_id=client_id,
+            restore_all_projects=True
+        )
+
+        assert isinstance(result, Client)
+        assert result.id == client_id
+        assert result.name == "Restored Client"
+        assert result.archived is False
+
+    @respx.mock
+    async def test_restore_client_with_project_ids(self, mock_toggl_client: TogglClient):
+        """Test restoring a client with specific project IDs."""
+        workspace_id = 12345
+        client_id = 2001
+        mock_response = {
+            "id": client_id,
+            "name": "Restored Client",
+            "wid": workspace_id,
+            "archived": False,
+            "notes": None,
+            "external_reference": None,
+            "at": "2024-01-05T10:00:00Z",
+            "creator_id": 123
+        }
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/clients/{client_id}/restore").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.restore_client(
+            workspace_id=workspace_id,
+            client_id=client_id,
+            project_ids=[111, 222]
+        )
+
+        assert isinstance(result, Client)
+        assert result.id == client_id

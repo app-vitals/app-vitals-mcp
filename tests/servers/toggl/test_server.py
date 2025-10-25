@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from app_vitals_mcp.servers.toggl.config import TogglConfig
 from app_vitals_mcp.servers.toggl.server import TogglServer
-from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project, Task
+from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project, Task, Client
 
 
 @pytest.mark.unit
@@ -36,6 +36,13 @@ class TestTogglServerUnit:
         server.task_service.create_task = AsyncMock()
         server.task_service.update_task = AsyncMock()
         server.task_service.delete_task = AsyncMock()
+        server.client_service.get_clients = AsyncMock()
+        server.client_service.get_client = AsyncMock()
+        server.client_service.create_client = AsyncMock()
+        server.client_service.update_client = AsyncMock()
+        server.client_service.delete_client = AsyncMock()
+        server.client_service.archive_client = AsyncMock()
+        server.client_service.restore_client = AsyncMock()
         server.client.close = AsyncMock()
         
         yield server
@@ -523,6 +530,190 @@ class TestTogglServerUnit:
         
         assert not result["success"]
         assert "Failed to delete" in result["message"]
+
+    async def test_get_clients(self, mock_server: TogglServer):
+        """Test getting clients through MCP tool."""
+        mock_clients = [
+            Client(
+                id=2001,
+                name="Acme Corp",
+                wid=12345,
+                archived=False,
+                notes="Main client"
+            ),
+            Client(
+                id=2002,
+                name="Tech Startup",
+                wid=12345,
+                archived=False,
+                notes=None
+            )
+        ]
+
+        mock_server.client_service.get_clients.return_value = mock_clients
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_clients = tools["toggl_get_clients"]
+
+        result = await get_clients.fn(status="active")
+
+        assert len(result) == 2
+        assert result[0]["id"] == 2001
+        assert result[0]["name"] == "Acme Corp"
+        assert result[1]["id"] == 2002
+        assert result[1]["name"] == "Tech Startup"
+
+    async def test_get_client(self, mock_server: TogglServer):
+        """Test getting a specific client through MCP tool."""
+        mock_client = Client(
+            id=2001,
+            name="Acme Corp",
+            wid=12345,
+            archived=False,
+            notes="Main client",
+            external_reference="EXT-001"
+        )
+
+        mock_server.client_service.get_client.return_value = mock_client
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_client = tools["toggl_get_client"]
+
+        result = await get_client.fn(client_id=2001)
+
+        assert result["id"] == 2001
+        assert result["name"] == "Acme Corp"
+        assert result["notes"] == "Main client"
+
+    async def test_get_client_not_found(self, mock_server: TogglServer):
+        """Test getting a client that doesn't exist."""
+        mock_server.client_service.get_client.return_value = None
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_client = tools["toggl_get_client"]
+
+        result = await get_client.fn(client_id=999)
+
+        assert "error" in result
+        assert result["error"] == "Client not found"
+
+    async def test_create_client(self, mock_server: TogglServer):
+        """Test creating a new client through MCP tool."""
+        mock_client = Client(
+            id=2003,
+            name="New Client Ltd",
+            wid=12345,
+            archived=False,
+            notes="New business partner",
+            external_reference="EXT-003"
+        )
+
+        mock_server.client_service.create_client.return_value = mock_client
+
+        tools = mock_server.mcp._tool_manager._tools
+        create_client = tools["toggl_create_client"]
+
+        result = await create_client.fn(
+            name="New Client Ltd",
+            notes="New business partner",
+            external_reference="EXT-003"
+        )
+
+        assert result["id"] == 2003
+        assert result["name"] == "New Client Ltd"
+        assert result["notes"] == "New business partner"
+        mock_server.client_service.create_client.assert_called_once_with(
+            "New Client Ltd", "New business partner", "EXT-003"
+        )
+
+    async def test_update_client(self, mock_server: TogglServer):
+        """Test updating an existing client through MCP tool."""
+        updated_client = Client(
+            id=2001,
+            name="Updated Client Name",
+            wid=12345,
+            archived=False,
+            notes="Updated notes",
+            external_reference="EXT-UPDATED"
+        )
+
+        mock_server.client_service.update_client.return_value = updated_client
+
+        tools = mock_server.mcp._tool_manager._tools
+        update_client = tools["toggl_update_client"]
+
+        result = await update_client.fn(
+            client_id=2001,
+            name="Updated Client Name",
+            notes="Updated notes",
+            external_reference="EXT-UPDATED"
+        )
+
+        assert result["id"] == 2001
+        assert result["name"] == "Updated Client Name"
+        assert result["notes"] == "Updated notes"
+        assert result["external_reference"] == "EXT-UPDATED"
+
+    async def test_delete_client_success(self, mock_server: TogglServer):
+        """Test successfully deleting a client through MCP tool."""
+        mock_server.client_service.delete_client.return_value = True
+
+        tools = mock_server.mcp._tool_manager._tools
+        delete_client = tools["toggl_delete_client"]
+
+        result = await delete_client.fn(client_id=2001)
+
+        assert result["success"]
+        assert "deleted successfully" in result["message"]
+
+    async def test_delete_client_failure(self, mock_server: TogglServer):
+        """Test failed client deletion through MCP tool."""
+        mock_server.client_service.delete_client.return_value = False
+
+        tools = mock_server.mcp._tool_manager._tools
+        delete_client = tools["toggl_delete_client"]
+
+        result = await delete_client.fn(client_id=999)
+
+        assert not result["success"]
+        assert "Failed to delete" in result["message"]
+
+    async def test_archive_client(self, mock_server: TogglServer):
+        """Test archiving a client through MCP tool."""
+        mock_server.client_service.archive_client.return_value = [111, 222]
+
+        tools = mock_server.mcp._tool_manager._tools
+        archive_client = tools["toggl_archive_client"]
+
+        result = await archive_client.fn(client_id=2001)
+
+        assert result["success"]
+        assert "archived successfully" in result["message"]
+        assert result["archived_project_ids"] == [111, 222]
+
+    async def test_restore_client(self, mock_server: TogglServer):
+        """Test restoring an archived client through MCP tool."""
+        restored_client = Client(
+            id=2001,
+            name="Restored Client",
+            wid=12345,
+            archived=False,
+            notes="Restored"
+        )
+
+        mock_server.client_service.restore_client.return_value = restored_client
+
+        tools = mock_server.mcp._tool_manager._tools
+        restore_client = tools["toggl_restore_client"]
+
+        result = await restore_client.fn(
+            client_id=2001,
+            restore_all_projects=True
+        )
+
+        assert result["id"] == 2001
+        assert result["name"] == "Restored Client"
+        assert result["archived"] is False
 
 
 @pytest.mark.integration

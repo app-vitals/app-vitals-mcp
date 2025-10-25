@@ -6,7 +6,14 @@ from fastmcp import FastMCP
 
 from .config import TogglConfig
 from .client import TogglClient
-from .services import TimerService, TimeEntryService, AnalyticsService, WorkspaceService, TaskService
+from .services import (
+    TimerService,
+    TimeEntryService,
+    AnalyticsService,
+    WorkspaceService,
+    TaskService,
+    ClientService,
+)
 
 
 class TogglServer:
@@ -23,6 +30,7 @@ class TogglServer:
         self.analytics_service = AnalyticsService(self.client)
         self.workspace_service = WorkspaceService(self.client)
         self.task_service = TaskService(self.client, config.workspace_id)
+        self.client_service = ClientService(self.client, config.workspace_id)
         
         self._setup_tools()
     
@@ -33,6 +41,7 @@ class TogglServer:
         self._setup_analytics_tools()
         self._setup_workspace_tools()
         self._setup_task_tools()
+        self._setup_client_tools()
     
     def _setup_timer_tools(self):
         """Set up timer-related tools."""
@@ -289,7 +298,134 @@ class TogglServer:
                 return {"success": False, "message": f"Failed to delete task {task_id}"}
             except ValueError as e:
                 return {"error": str(e)}
-    
+
+    def _setup_client_tools(self):
+        """Set up client management tools."""
+
+        @self.mcp.tool()
+        async def toggl_get_clients(status: Optional[str] = None,
+                             name: Optional[str] = None) -> List[Dict[str, Any]]:
+            """Get clients, optionally filtered by status and name.
+
+            Args:
+                status: Filter by status - 'active', 'archived', or 'both' (optional)
+                name: Filter by name (case-insensitive match, optional)
+            """
+            try:
+                clients = await self.client_service.get_clients(status, name)
+                return [client.model_dump() for client in clients]
+            except ValueError as e:
+                return [{"error": str(e)}]
+
+        @self.mcp.tool()
+        async def toggl_get_client(client_id: int) -> Dict[str, Any]:
+            """Get details of a specific client.
+
+            Args:
+                client_id: ID of the client to retrieve
+            """
+            try:
+                client = await self.client_service.get_client(client_id)
+                if client:
+                    return client.model_dump()
+                return {"error": "Client not found"}
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_create_client(name: str,
+                               notes: Optional[str] = None,
+                               external_reference: Optional[str] = None) -> Dict[str, Any]:
+            """Create a new client.
+
+            Args:
+                name: Client name (required)
+                notes: Optional notes about the client
+                external_reference: Optional external reference ID
+            """
+            try:
+                client = await self.client_service.create_client(
+                    name, notes, external_reference
+                )
+                return client.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_update_client(client_id: int,
+                               name: Optional[str] = None,
+                               notes: Optional[str] = None,
+                               external_reference: Optional[str] = None) -> Dict[str, Any]:
+            """Update an existing client.
+
+            Args:
+                client_id: ID of the client to update
+                name: New client name (optional)
+                notes: New notes (optional)
+                external_reference: New external reference (optional)
+            """
+            try:
+                client = await self.client_service.update_client(
+                    client_id, name, notes, external_reference
+                )
+                return client.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_delete_client(client_id: int) -> Dict[str, Any]:
+            """Delete a client permanently.
+
+            Args:
+                client_id: ID of the client to delete
+            """
+            try:
+                success = await self.client_service.delete_client(client_id)
+                if success:
+                    return {"success": True, "message": f"Client {client_id} deleted successfully"}
+                return {"success": False, "message": f"Failed to delete client {client_id}"}
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_archive_client(client_id: int) -> Dict[str, Any]:
+            """Archive a client and related projects (premium workspaces only).
+
+            Args:
+                client_id: ID of the client to archive
+
+            Returns:
+                Dictionary with archived project IDs
+            """
+            try:
+                project_ids = await self.client_service.archive_client(client_id)
+                return {
+                    "success": True,
+                    "message": f"Client {client_id} archived successfully",
+                    "archived_project_ids": project_ids
+                }
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_restore_client(client_id: int,
+                                restore_all_projects: bool = False,
+                                project_ids: Optional[List[int]] = None) -> Dict[str, Any]:
+            """Restore an archived client.
+
+            Args:
+                client_id: ID of the client to restore
+                restore_all_projects: If True, restore all related projects (default: False)
+                project_ids: List of specific project IDs to restore (optional)
+            """
+            try:
+                client = await self.client_service.restore_client(
+                    client_id, restore_all_projects, project_ids
+                )
+                return client.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
     def run(self):
         """Run the MCP server."""
         self.mcp.run()

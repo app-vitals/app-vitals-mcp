@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from .client import TogglClient
-from .models import TimeEntry, Project, Workspace, Task
+from .models import TimeEntry, Project, Workspace, Task, Client
 
 
 class TimerService:
@@ -248,5 +248,117 @@ class TaskService:
         workspace_id = await self._get_workspace_id()
         if not workspace_id:
             raise ValueError("No workspace available")
-        
+
         return await self.client.delete_task(workspace_id, project_id, task_id)
+
+
+class ClientService:
+    """Service for client management."""
+
+    def __init__(self, client: TogglClient, workspace_id: Optional[int] = None):
+        self.client = client
+        self.default_workspace_id = workspace_id
+
+    async def _get_workspace_id(self) -> Optional[int]:
+        """Get workspace ID (from config or first available)."""
+        if self.default_workspace_id:
+            return self.default_workspace_id
+
+        workspaces = await self.client.get_workspaces()
+        return workspaces[0].id if workspaces else None
+
+    async def get_clients(self, status: Optional[str] = None,
+                         name: Optional[str] = None) -> List[Client]:
+        """Get clients, optionally filtered by status and name.
+
+        Args:
+            status: Filter by status - 'active', 'archived', or 'both'
+            name: Filter by name (case-insensitive match)
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.get_clients(workspace_id, status, name)
+
+    async def get_client(self, client_id: int) -> Optional[Client]:
+        """Get a specific client."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.get_client(workspace_id, client_id)
+
+    async def create_client(self, name: str, notes: Optional[str] = None,
+                          external_reference: Optional[str] = None) -> Client:
+        """Create a new client.
+
+        Args:
+            name: Client name (required)
+            notes: Optional notes about the client
+            external_reference: Optional external reference ID
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.create_client(
+            workspace_id, name, notes, external_reference
+        )
+
+    async def update_client(self, client_id: int, name: Optional[str] = None,
+                          notes: Optional[str] = None,
+                          external_reference: Optional[str] = None) -> Client:
+        """Update an existing client.
+
+        Args:
+            client_id: The client ID
+            name: New client name
+            notes: New notes
+            external_reference: New external reference
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.update_client(
+            workspace_id, client_id, name, notes, external_reference
+        )
+
+    async def delete_client(self, client_id: int) -> bool:
+        """Delete a client permanently."""
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.delete_client(workspace_id, client_id)
+
+    async def archive_client(self, client_id: int) -> List[int]:
+        """Archive a client and related projects (premium workspaces only).
+
+        Returns:
+            List of archived project IDs
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.archive_client(workspace_id, client_id)
+
+    async def restore_client(self, client_id: int,
+                           restore_all_projects: bool = False,
+                           project_ids: Optional[List[int]] = None) -> Client:
+        """Restore an archived client.
+
+        Args:
+            client_id: The client ID
+            restore_all_projects: If True, restore all related projects
+            project_ids: List of specific project IDs to restore
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.restore_client(
+            workspace_id, client_id, restore_all_projects, project_ids
+        )

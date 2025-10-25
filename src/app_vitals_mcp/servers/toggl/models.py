@@ -49,3 +49,15 @@ class Workspace(BaseModel):
     id: int
     name: str
     organization_id: int
+
+
+class Client(BaseModel):
+    """Toggl client model."""
+    id: int
+    name: str
+    wid: int  # workspace_id
+    archived: bool = False
+    notes: Optional[str] = None
+    external_reference: Optional[str] = None
+    at: Optional[str] = None  # timestamp
+    creator_id: Optional[int] = None

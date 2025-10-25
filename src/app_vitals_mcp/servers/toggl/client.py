@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 
 import httpx
 
-from .models import TimeEntry, Project, Workspace, Task
+from .models import TimeEntry, Project, Workspace, Task, Client
 
 
 class TogglClient:
@@ -243,7 +243,136 @@ class TogglClient:
         )
         response.raise_for_status()
         return response.status_code == 200
-    
+
+    # Clients API methods
+    async def get_clients(self, workspace_id: int, status: Optional[str] = None,
+                         name: Optional[str] = None) -> List[Client]:
+        """Get clients for a workspace.
+
+        Args:
+            workspace_id: The workspace ID
+            status: Filter by status - 'active', 'archived', or 'both'
+            name: Filter by name (case-insensitive match)
+        """
+        params = {}
+        if status is not None:
+            params["status"] = status
+        if name is not None:
+            params["name"] = name
+
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/clients",
+            params=params
+        )
+        response.raise_for_status()
+        data = response.json()
+        return [Client(**client) for client in data]
+
+    async def get_client(self, workspace_id: int, client_id: int) -> Optional[Client]:
+        """Get a specific client."""
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/clients/{client_id}"
+        )
+        if response.status_code == 200:
+            return Client(**response.json())
+        return None
+
+    async def create_client(self, workspace_id: int, name: str,
+                          notes: Optional[str] = None,
+                          external_reference: Optional[str] = None) -> Client:
+        """Create a new client.
+
+        Args:
+            workspace_id: The workspace ID
+            name: Client name (required)
+            notes: Optional notes about the client
+            external_reference: Optional external reference ID
+        """
+        payload: Dict[str, Any] = {"name": name}
+        if notes is not None:
+            payload["notes"] = notes
+        if external_reference is not None:
+            payload["external_reference"] = external_reference
+
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/clients",
+            json=payload
+        )
+        response.raise_for_status()
+        return Client(**response.json())
+
+    async def update_client(self, workspace_id: int, client_id: int,
+                          name: Optional[str] = None,
+                          notes: Optional[str] = None,
+                          external_reference: Optional[str] = None) -> Client:
+        """Update an existing client.
+
+        Args:
+            workspace_id: The workspace ID
+            client_id: The client ID
+            name: New client name
+            notes: New notes
+            external_reference: New external reference
+        """
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if notes is not None:
+            payload["notes"] = notes
+        if external_reference is not None:
+            payload["external_reference"] = external_reference
+
+        response = await self.client.put(
+            f"{self.base_url}/workspaces/{workspace_id}/clients/{client_id}",
+            json=payload
+        )
+        response.raise_for_status()
+        return Client(**response.json())
+
+    async def delete_client(self, workspace_id: int, client_id: int) -> bool:
+        """Delete a client permanently."""
+        response = await self.client.delete(
+            f"{self.base_url}/workspaces/{workspace_id}/clients/{client_id}"
+        )
+        response.raise_for_status()
+        return response.status_code == 200
+
+    async def archive_client(self, workspace_id: int, client_id: int) -> List[int]:
+        """Archive a client and related projects (premium workspaces only).
+
+        Returns:
+            List of archived project IDs
+        """
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/clients/{client_id}/archive"
+        )
+        response.raise_for_status()
+        return response.json()  # Returns array of archived project IDs
+
+    async def restore_client(self, workspace_id: int, client_id: int,
+                           restore_all_projects: bool = False,
+                           project_ids: Optional[List[int]] = None) -> Client:
+        """Restore an archived client.
+
+        Args:
+            workspace_id: The workspace ID
+            client_id: The client ID
+            restore_all_projects: If True, restore all related projects
+            project_ids: List of specific project IDs to restore
+        """
+        payload: Dict[str, Any] = {}
+        if restore_all_projects:
+            payload["restore_all_projects"] = True
+        elif project_ids:
+            payload["project_ids"] = project_ids
+
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/clients/{client_id}/restore",
+            json=payload if payload else None
+        )
+        response.raise_for_status()
+        return Client(**response.json())
+
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()

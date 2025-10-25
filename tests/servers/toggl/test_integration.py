@@ -5,6 +5,7 @@ import pytest_asyncio
 import asyncio
 import os
 from typing import Optional
+from datetime import datetime
 
 from app_vitals_mcp.servers.toggl.config import TogglConfig
 from app_vitals_mcp.servers.toggl.server import TogglServer
@@ -248,6 +249,73 @@ class TestTogglIntegration:
         # Delete the test task (cleanup)
         delete_result = await tools["toggl_delete_task"].fn(project_id=project_id, task_id=task_id)
         assert delete_result["success"]
+
+        # Wait at end to avoid rate limiting on next test
+        await asyncio.sleep(1)
+
+    async def test_client_management_workflow(self, integration_server: TogglServer):
+        """Test complete client management workflow."""
+        tools = integration_server.mcp._tool_manager._tools
+
+        # Use timestamp to ensure unique client name
+        timestamp = datetime.utcnow().isoformat()
+        client_name = f"Test Client {timestamp}"
+
+        # Create a test client
+        create_result = await tools["toggl_create_client"].fn(
+            name=client_name,
+            notes="Created by integration test",
+            external_reference="TEST-001"
+        )
+        assert "id" in create_result
+        assert create_result["name"] == client_name
+        assert create_result["notes"] == "Created by integration test"
+        assert create_result["external_reference"] == "TEST-001"
+
+        client_id = create_result["id"]
+
+        # Get the client to verify it was created
+        get_result = await tools["toggl_get_client"].fn(client_id=client_id)
+        assert get_result["id"] == client_id
+        assert get_result["name"] == client_name
+
+        # Update the client
+        updated_name = f"Updated {client_name}"
+        update_result = await tools["toggl_update_client"].fn(
+            client_id=client_id,
+            name=updated_name,
+            notes="Updated by integration test",
+            external_reference="TEST-002"
+        )
+        assert update_result["id"] == client_id
+        assert update_result["name"] == updated_name
+        assert update_result["notes"] == "Updated by integration test"
+        assert update_result["external_reference"] == "TEST-002"
+
+        # Get all clients and find our test client
+        clients_result = await tools["toggl_get_clients"].fn()
+        assert isinstance(clients_result, list)
+        our_client = next((c for c in clients_result if c["id"] == client_id), None)
+        assert our_client is not None
+        assert our_client["name"] == updated_name
+
+        # Filter clients by name
+        filtered_clients = await tools["toggl_get_clients"].fn(name="Test Client")
+        assert isinstance(filtered_clients, list)
+        # Our client should appear in filtered results
+        found_in_filter = any(c["id"] == client_id for c in filtered_clients)
+        assert found_in_filter
+
+        # Delete the test client (cleanup)
+        delete_result = await tools["toggl_delete_client"].fn(client_id=client_id)
+        assert delete_result["success"]
+
+        # Verify deletion
+        verify_result = await tools["toggl_get_client"].fn(client_id=client_id)
+        assert "error" in verify_result
+
+        # Wait at end to avoid rate limiting on next test
+        await asyncio.sleep(1)
 
 
 def test_environment_setup():
