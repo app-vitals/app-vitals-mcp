@@ -89,19 +89,19 @@ class TestTogglIntegration:
         tools = integration_server.mcp._tool_manager._tools
         
         # Test get_workspaces
-        workspaces_result = await tools["get_workspaces"].fn()
+        workspaces_result = await tools["toggl_get_workspaces"].fn()
         assert isinstance(workspaces_result, list)
         
         # Test get_current_time_entry
-        current_result = await tools["get_current_time_entry"].fn()
+        current_result = await tools["toggl_get_current_time_entry"].fn()
         assert isinstance(current_result, dict)
         
         # Test get_time_entries
-        entries_result = await tools["get_time_entries"].fn(days_back=7)
+        entries_result = await tools["toggl_get_time_entries"].fn(days_back=7)
         assert isinstance(entries_result, list)
         
         # Test get_time_summary
-        summary_result = await tools["get_time_summary"].fn(days_back=7)
+        summary_result = await tools["toggl_get_time_summary"].fn(days_back=7)
         assert isinstance(summary_result, dict)
         assert "total_hours" in summary_result
         assert "total_entries" in summary_result
@@ -112,7 +112,7 @@ class TestTogglIntegration:
         tools = integration_server.mcp._tool_manager._tools
         
         # Get available projects and find the test project
-        projects = await tools["get_projects"].fn()
+        projects = await tools["toggl_get_projects"].fn()
         test_project = next((p for p in projects if p["name"] == "Integration Tests"), None)
         if not test_project:
             pytest.fail("Integration Tests project not found - please create a project named 'Integration Tests' in your Toggl workspace")
@@ -120,18 +120,18 @@ class TestTogglIntegration:
         project_id = test_project["id"]
         
         # Check current state
-        current_before = await tools["get_current_time_entry"].fn()
+        current_before = await tools["toggl_get_current_time_entry"].fn()
         
         # If there's already a timer running, stop it first
         if "status" not in current_before:
-            await tools["stop_timer"].fn()
+            await tools["toggl_stop_timer"].fn()
             await asyncio.sleep(2)  # Wait for API consistency
         
         # Get tasks for the project to find a task_id
-        tasks = await tools["get_tasks"].fn(project_id=project_id)
+        tasks = await tools["toggl_get_tasks"].fn(project_id=project_id)
         if not tasks:
             # Create a test task if none exist
-            task_result = await tools["create_task"].fn(
+            task_result = await tools["toggl_create_task"].fn(
                 project_id=project_id,
                 name="Integration test task - safe to delete",
                 estimated_hours=1.0
@@ -141,7 +141,7 @@ class TestTogglIntegration:
             task_id = tasks[0]["id"]
         
         # Start a new timer (using the Integration Tests project and task)
-        start_result = await tools["start_timer"].fn(
+        start_result = await tools["toggl_start_timer"].fn(
             description="Integration test timer - safe to delete",
             project_id=project_id,
             task_id=task_id
@@ -153,12 +153,12 @@ class TestTogglIntegration:
         await asyncio.sleep(3)
         
         # Check that timer is running
-        current_running = await tools["get_current_time_entry"].fn()
+        current_running = await tools["toggl_get_current_time_entry"].fn()
         assert "status" not in current_running  # Should have a running entry
         assert current_running["id"] == start_result["id"]
         
         # Stop the timer
-        stop_result = await tools["stop_timer"].fn()
+        stop_result = await tools["toggl_stop_timer"].fn()
         assert stop_result["id"] == start_result["id"]
         assert stop_result["duration"] > 0  # Should have positive duration when stopped
         
@@ -166,7 +166,7 @@ class TestTogglIntegration:
         await asyncio.sleep(2)
         
         # Check that no timer is running
-        current_after = await tools["get_current_time_entry"].fn()
+        current_after = await tools["toggl_get_current_time_entry"].fn()
         assert current_after.get("status") == "No time entry currently running"
 
     async def test_error_handling(self, real_api_token: Optional[str]):
@@ -202,7 +202,7 @@ class TestTogglIntegration:
         tools = integration_server.mcp._tool_manager._tools
         
         # Get available projects and find the test project
-        projects = await tools["get_projects"].fn()
+        projects = await tools["toggl_get_projects"].fn()
         test_project = next((p for p in projects if p["name"] == "Integration Tests"), None)
         if not test_project:
             pytest.fail("Integration Tests project not found - please create a project named 'Integration Tests' in your Toggl workspace")
@@ -210,7 +210,7 @@ class TestTogglIntegration:
         project_id = test_project["id"]
         
         # Create a test task
-        create_result = await tools["create_task"].fn(
+        create_result = await tools["toggl_create_task"].fn(
             project_id=project_id,
             name="Test task for integration - safe to delete",
             estimated_hours=2.0
@@ -222,12 +222,12 @@ class TestTogglIntegration:
         task_id = create_result["id"]
         
         # Get the task to verify it was created
-        get_result = await tools["get_task"].fn(project_id=project_id, task_id=task_id)
+        get_result = await tools["toggl_get_task"].fn(project_id=project_id, task_id=task_id)
         assert get_result["id"] == task_id
         assert get_result["name"] == "Test task for integration - safe to delete"
         
         # Update the task
-        update_result = await tools["update_task"].fn(
+        update_result = await tools["toggl_update_task"].fn(
             project_id=project_id,
             task_id=task_id,
             name="Updated test task",
@@ -238,7 +238,7 @@ class TestTogglIntegration:
         assert update_result["estimated_seconds"] == 10800  # 3 hours
         
         # Get tasks for the project
-        tasks_result = await tools["get_tasks"].fn(project_id=project_id)
+        tasks_result = await tools["toggl_get_tasks"].fn(project_id=project_id)
         assert isinstance(tasks_result, list)
         # Find our test task in the list
         our_task = next((t for t in tasks_result if t["id"] == task_id), None)
@@ -246,7 +246,7 @@ class TestTogglIntegration:
         assert our_task["name"] == "Updated test task"
         
         # Delete the test task (cleanup)
-        delete_result = await tools["delete_task"].fn(project_id=project_id, task_id=task_id)
+        delete_result = await tools["toggl_delete_task"].fn(project_id=project_id, task_id=task_id)
         assert delete_result["success"]
 
 

@@ -47,7 +47,7 @@ class TestTogglServerUnit:
         
         # Get the tool function
         tools = mock_server.mcp._tool_manager._tools
-        get_current_time_entry = tools["get_current_time_entry"]
+        get_current_time_entry = tools["toggl_get_current_time_entry"]
         
         result = await get_current_time_entry.fn()
         assert result == {"status": "No time entry currently running"}
@@ -64,7 +64,7 @@ class TestTogglServerUnit:
         mock_server.timer_service.get_current_timer.return_value = mock_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        get_current_time_entry = tools["get_current_time_entry"]
+        get_current_time_entry = tools["toggl_get_current_time_entry"]
         
         result = await get_current_time_entry.fn()
         assert result["id"] == 123
@@ -84,7 +84,7 @@ class TestTogglServerUnit:
         mock_server.timer_service.start_timer.return_value = mock_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        start_timer = tools["start_timer"]
+        start_timer = tools["toggl_start_timer"]
         
         result = await start_timer.fn(description="New task", project_id=111, task_id=1001)
         
@@ -99,7 +99,7 @@ class TestTogglServerUnit:
         mock_server.timer_service.stop_current_timer.return_value = None
         
         tools = mock_server.mcp._tool_manager._tools
-        stop_timer = tools["stop_timer"]
+        stop_timer = tools["toggl_stop_timer"]
         
         result = await stop_timer.fn()
         assert result == {"status": "No time entry currently running"}
@@ -125,7 +125,7 @@ class TestTogglServerUnit:
         mock_server.timer_service.stop_current_timer.return_value = stopped_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        stop_timer = tools["stop_timer"]
+        stop_timer = tools["toggl_stop_timer"]
         
         result = await stop_timer.fn()
         
@@ -155,7 +155,7 @@ class TestTogglServerUnit:
         mock_server.analytics_service.get_time_entries.return_value = mock_entries
         
         tools = mock_server.mcp._tool_manager._tools
-        get_time_entries = tools["get_time_entries"]
+        get_time_entries = tools["toggl_get_time_entries"]
         
         result = await get_time_entries.fn(days_back=3)
         
@@ -172,7 +172,7 @@ class TestTogglServerUnit:
         mock_server.workspace_service.get_workspaces.return_value = mock_workspaces
         
         tools = mock_server.mcp._tool_manager._tools
-        get_workspaces = tools["get_workspaces"]
+        get_workspaces = tools["toggl_get_workspaces"]
         
         result = await get_workspaces.fn()
         
@@ -189,7 +189,7 @@ class TestTogglServerUnit:
         mock_server.workspace_service.get_projects.return_value = mock_projects
         
         tools = mock_server.mcp._tool_manager._tools
-        get_projects = tools["get_projects"]
+        get_projects = tools["toggl_get_projects"]
         
         result = await get_projects.fn(workspace_id=12345)
         
@@ -236,7 +236,7 @@ class TestTogglServerUnit:
         }
         
         tools = mock_server.mcp._tool_manager._tools
-        get_time_summary = tools["get_time_summary"]
+        get_time_summary = tools["toggl_get_time_summary"]
         
         result = await get_time_summary.fn(days_back=7)
         
@@ -262,7 +262,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.create_entry.return_value = mock_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        create_time_entry = tools["create_time_entry"]
+        create_time_entry = tools["toggl_create_time_entry"]
         
         result = await create_time_entry.fn(
             description="Completed task",
@@ -294,7 +294,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.get_entry.return_value = mock_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        get_time_entry = tools["get_time_entry"]
+        get_time_entry = tools["toggl_get_time_entry"]
         
         result = await get_time_entry.fn(time_entry_id=456)
         
@@ -306,7 +306,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.get_entry.return_value = None
         
         tools = mock_server.mcp._tool_manager._tools
-        get_time_entry = tools["get_time_entry"]
+        get_time_entry = tools["toggl_get_time_entry"]
         
         result = await get_time_entry.fn(time_entry_id=999)
         
@@ -329,7 +329,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.update_entry.return_value = updated_entry
         
         tools = mock_server.mcp._tool_manager._tools
-        update_time_entry = tools["update_time_entry"]
+        update_time_entry = tools["toggl_update_time_entry"]
         
         result = await update_time_entry.fn(
             time_entry_id=789,
@@ -349,7 +349,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.delete_entry.return_value = True
         
         tools = mock_server.mcp._tool_manager._tools
-        delete_time_entry = tools["delete_time_entry"]
+        delete_time_entry = tools["toggl_delete_time_entry"]
         
         result = await delete_time_entry.fn(time_entry_id=555)
         
@@ -361,7 +361,7 @@ class TestTogglServerUnit:
         mock_server.entry_service.delete_entry.return_value = False
         
         tools = mock_server.mcp._tool_manager._tools
-        delete_time_entry = tools["delete_time_entry"]
+        delete_time_entry = tools["toggl_delete_time_entry"]
         
         result = await delete_time_entry.fn(time_entry_id=999)
         
@@ -394,7 +394,7 @@ class TestTogglServerUnit:
         mock_server.task_service.get_tasks.return_value = mock_tasks
         
         tools = mock_server.mcp._tool_manager._tools
-        get_tasks = tools["get_tasks"]
+        get_tasks = tools["toggl_get_tasks"]
         
         result = await get_tasks.fn(project_id=111, active=True)
         
@@ -419,7 +419,7 @@ class TestTogglServerUnit:
         mock_server.task_service.get_task.return_value = mock_task
         
         tools = mock_server.mcp._tool_manager._tools
-        get_task = tools["get_task"]
+        get_task = tools["toggl_get_task"]
         
         result = await get_task.fn(project_id=111, task_id=1001)
         
@@ -432,7 +432,7 @@ class TestTogglServerUnit:
         mock_server.task_service.get_task.return_value = None
         
         tools = mock_server.mcp._tool_manager._tools
-        get_task = tools["get_task"]
+        get_task = tools["toggl_get_task"]
         
         result = await get_task.fn(project_id=111, task_id=999)
         
@@ -454,7 +454,7 @@ class TestTogglServerUnit:
         mock_server.task_service.create_task.return_value = mock_task
         
         tools = mock_server.mcp._tool_manager._tools
-        create_task = tools["create_task"]
+        create_task = tools["toggl_create_task"]
         
         result = await create_task.fn(
             project_id=111,
@@ -485,7 +485,7 @@ class TestTogglServerUnit:
         mock_server.task_service.update_task.return_value = updated_task
         
         tools = mock_server.mcp._tool_manager._tools
-        update_task = tools["update_task"]
+        update_task = tools["toggl_update_task"]
         
         result = await update_task.fn(
             project_id=111,
@@ -505,7 +505,7 @@ class TestTogglServerUnit:
         mock_server.task_service.delete_task.return_value = True
         
         tools = mock_server.mcp._tool_manager._tools
-        delete_task = tools["delete_task"]
+        delete_task = tools["toggl_delete_task"]
         
         result = await delete_task.fn(project_id=111, task_id=1001)
         
@@ -517,7 +517,7 @@ class TestTogglServerUnit:
         mock_server.task_service.delete_task.return_value = False
         
         tools = mock_server.mcp._tool_manager._tools
-        delete_task = tools["delete_task"]
+        delete_task = tools["toggl_delete_task"]
         
         result = await delete_task.fn(project_id=111, task_id=999)
         
@@ -546,7 +546,7 @@ class TestTogglServerIntegration:
             pytest.skip("Real API token not available")
         
         tools = real_server.mcp._tool_manager._tools
-        get_workspaces = tools["get_workspaces"]
+        get_workspaces = tools["toggl_get_workspaces"]
         
         result = await get_workspaces.fn()
         
@@ -561,7 +561,7 @@ class TestTogglServerIntegration:
             pytest.skip("Real API token not available")
         
         tools = real_server.mcp._tool_manager._tools
-        get_current_time_entry = tools["get_current_time_entry"]
+        get_current_time_entry = tools["toggl_get_current_time_entry"]
         
         result = await get_current_time_entry.fn()
         
@@ -577,7 +577,7 @@ class TestTogglServerIntegration:
             pytest.skip("Real API token not available")
         
         tools = real_server.mcp._tool_manager._tools
-        get_time_entries = tools["get_time_entries"]
+        get_time_entries = tools["toggl_get_time_entries"]
         
         result = await get_time_entries.fn(days_back=30)
         

@@ -38,7 +38,7 @@ class TogglServer:
         """Set up timer-related tools."""
         
         @self.mcp.tool()
-        async def get_current_time_entry() -> Dict[str, Any]:
+        async def toggl_get_current_time_entry() -> Dict[str, Any]:
             """Get the currently running time entry."""
             entry = await self.timer_service.get_current_timer()
             if entry:
@@ -46,7 +46,7 @@ class TogglServer:
             return {"status": "No time entry currently running"}
         
         @self.mcp.tool()
-        async def start_timer(description: str, project_id: int, task_id: int,
+        async def toggl_start_timer(description: str, project_id: int, task_id: int,
                              tags: Optional[List[str]] = None) -> Dict[str, Any]:
             """Start a new time entry.
             
@@ -63,7 +63,7 @@ class TogglServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def stop_timer() -> Dict[str, Any]:
+        async def toggl_stop_timer() -> Dict[str, Any]:
             """Stop the currently running time entry."""
             entry = await self.timer_service.stop_current_timer()
             if entry:
@@ -74,7 +74,7 @@ class TogglServer:
         """Set up time entry CRUD tools."""
         
         @self.mcp.tool()
-        async def create_time_entry(description: str, start_time: str, duration_minutes: int,
+        async def toggl_create_time_entry(description: str, start_time: str, duration_minutes: int,
                                    project_id: int, task_id: int,
                                    tags: Optional[List[str]] = None,
                                    billable: bool = True) -> Dict[str, Any]:
@@ -98,7 +98,7 @@ class TogglServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def get_time_entry(time_entry_id: int) -> Dict[str, Any]:
+        async def toggl_get_time_entry(time_entry_id: int) -> Dict[str, Any]:
             """Get details of a specific time entry.
             
             Args:
@@ -110,7 +110,7 @@ class TogglServer:
             return {"error": "Time entry not found"}
         
         @self.mcp.tool()
-        async def update_time_entry(time_entry_id: int, description: Optional[str] = None,
+        async def toggl_update_time_entry(time_entry_id: int, description: Optional[str] = None,
                                    start_time: Optional[str] = None, duration_minutes: Optional[int] = None,
                                    project_id: Optional[int] = None, task_id: Optional[int] = None,
                                    tags: Optional[List[str]] = None,
@@ -137,7 +137,7 @@ class TogglServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def delete_time_entry(time_entry_id: int) -> Dict[str, Any]:
+        async def toggl_delete_time_entry(time_entry_id: int) -> Dict[str, Any]:
             """Delete a time entry.
             
             Args:
@@ -156,7 +156,7 @@ class TogglServer:
         """Set up analytics and reporting tools."""
         
         @self.mcp.tool()
-        async def get_time_entries(days_back: int = 7) -> List[Dict[str, Any]]:
+        async def toggl_get_time_entries(days_back: int = 7) -> List[Dict[str, Any]]:
             """Get recent time entries.
             
             Args:
@@ -166,7 +166,7 @@ class TogglServer:
             return [entry.model_dump() for entry in entries]
         
         @self.mcp.tool()
-        async def get_time_summary(days_back: int = 7) -> Dict[str, Any]:
+        async def toggl_get_time_summary(days_back: int = 7) -> Dict[str, Any]:
             """Get a summary of time tracked in recent days.
             
             Args:
@@ -178,13 +178,13 @@ class TogglServer:
         """Set up workspace and project management tools."""
         
         @self.mcp.tool()
-        async def get_workspaces() -> List[Dict[str, Any]]:
+        async def toggl_get_workspaces() -> List[Dict[str, Any]]:
             """Get available workspaces."""
             workspaces = await self.workspace_service.get_workspaces()
             return [workspace.model_dump() for workspace in workspaces]
         
         @self.mcp.tool()
-        async def get_projects(workspace_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        async def toggl_get_projects(workspace_id: Optional[int] = None) -> List[Dict[str, Any]]:
             """Get projects for a workspace.
             
             Args:
@@ -197,7 +197,7 @@ class TogglServer:
         """Set up task management tools."""
         
         @self.mcp.tool()
-        async def get_tasks(project_id: Optional[int] = None, 
+        async def toggl_get_tasks(project_id: Optional[int] = None,
                            active: Optional[bool] = None) -> List[Dict[str, Any]]:
             """Get tasks, optionally filtered by project and active status.
             
@@ -212,7 +212,7 @@ class TogglServer:
                 return [{"error": str(e)}]
         
         @self.mcp.tool()
-        async def get_task(project_id: int, task_id: int) -> Dict[str, Any]:
+        async def toggl_get_task(project_id: int, task_id: int) -> Dict[str, Any]:
             """Get details of a specific task.
             
             Args:
@@ -225,7 +225,7 @@ class TogglServer:
             return {"error": "Task not found"}
         
         @self.mcp.tool()
-        async def create_task(project_id: int, name: str, 
+        async def toggl_create_task(project_id: int, name: str,
                              estimated_hours: Optional[float] = None,
                              active: bool = True) -> Dict[str, Any]:
             """Create a new task in a project.
@@ -249,7 +249,7 @@ class TogglServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def update_task(project_id: int, task_id: int,
+        async def toggl_update_task(project_id: int, task_id: int,
                              name: Optional[str] = None,
                              estimated_hours: Optional[float] = None,
                              active: Optional[bool] = None) -> Dict[str, Any]:
@@ -275,7 +275,7 @@ class TogglServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def delete_task(project_id: int, task_id: int) -> Dict[str, Any]:
+        async def toggl_delete_task(project_id: int, task_id: int) -> Dict[str, Any]:
             """Delete a task.
             
             Args:
