@@ -376,6 +376,101 @@ class TestTogglIntegration:
         # Wait at end to avoid rate limiting on next test
         await asyncio.sleep(1)
 
+    async def test_workspace_users(self, integration_server: TogglServer):
+        """Test getting workspace users."""
+        tools = integration_server.mcp._tool_manager._tools
+
+        # Get workspace users
+        users_result = await tools["toggl_get_workspace_users"].fn()
+        assert isinstance(users_result, list)
+
+        # Should have at least one user (the authenticated user)
+        if users_result:
+            user = users_result[0]
+            assert "id" in user
+            assert "email" in user
+            assert "fullname" in user
+            assert "role" in user
+
+    async def test_project_user_management_workflow(self, integration_server: TogglServer):
+        """Test complete project user management workflow."""
+        tools = integration_server.mcp._tool_manager._tools
+
+        # Get available projects to find test project
+        projects = await tools["toggl_get_projects"].fn()
+        test_project = next((p for p in projects if p["name"] == "Integration Tests"), None)
+        if not test_project:
+            pytest.fail("Integration Tests project not found - please create a project named 'Integration Tests' in your Toggl workspace")
+
+        project_id = test_project["id"]
+
+        # Get workspace users to find Dan
+        users = await tools["toggl_get_workspace_users"].fn()
+        dan_user = next((u for u in users if "Dan" in u.get("fullname", "") or "dan" in u.get("email", "").lower()), None)
+
+        if not dan_user:
+            pytest.skip("User 'Dan' not found in workspace")
+
+        user_id = dan_user["id"]
+
+        # Get existing project users for this project
+        existing_project_users = await tools["toggl_get_project_users"].fn(project_ids=[project_id])
+
+        # Check if Dan is already assigned to this project
+        existing_pu = next((pu for pu in existing_project_users if pu["user_id"] == user_id), None)
+
+        if existing_pu:
+            # Dan already assigned, just verify we can get and update
+            project_user_id = existing_pu["id"]
+
+            # Update the project user to manager
+            update_result = await tools["toggl_update_project_user"].fn(
+                project_user_id=project_user_id,
+                manager=True
+            )
+            assert update_result["id"] == project_user_id
+            assert update_result["manager"] is True
+
+            # Reset back to not manager
+            reset_result = await tools["toggl_update_project_user"].fn(
+                project_user_id=project_user_id,
+                manager=False
+            )
+            assert reset_result["manager"] is False
+        else:
+            # Add Dan to the project
+            add_result = await tools["toggl_add_project_user"].fn(
+                project_id=project_id,
+                user_id=user_id,
+                manager=False
+            )
+            assert "id" in add_result
+            assert add_result["user_id"] == user_id
+            assert add_result["project_id"] == project_id
+            assert add_result["manager"] is False
+
+            project_user_id = add_result["id"]
+
+            # Get project users to verify the addition
+            get_result = await tools["toggl_get_project_users"].fn(project_ids=[project_id])
+            our_pu = next((pu for pu in get_result if pu["id"] == project_user_id), None)
+            assert our_pu is not None
+
+            # Update the project user to manager
+            update_result = await tools["toggl_update_project_user"].fn(
+                project_user_id=project_user_id,
+                manager=True
+            )
+            assert update_result["id"] == project_user_id
+            assert update_result["manager"] is True
+
+            # Delete the project user (cleanup)
+            delete_result = await tools["toggl_delete_project_user"].fn(project_user_id=project_user_id)
+            assert delete_result["success"]
+
+        # Wait at end to avoid rate limiting on next test
+        await asyncio.sleep(1)
+
 
 def test_environment_setup():
     """Test that environment variables are properly configured."""

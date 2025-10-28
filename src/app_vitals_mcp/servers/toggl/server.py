@@ -14,6 +14,7 @@ from .services import (
     TaskService,
     ProjectService,
     ClientService,
+    ProjectUserService,
 )
 
 
@@ -33,7 +34,8 @@ class TogglServer:
         self.task_service = TaskService(self.client, config.workspace_id)
         self.project_service = ProjectService(self.client, config.workspace_id)
         self.client_service = ClientService(self.client, config.workspace_id)
-        
+        self.project_user_service = ProjectUserService(self.client, config.workspace_id)
+
         self._setup_tools()
     
     def _setup_tools(self):
@@ -45,6 +47,7 @@ class TogglServer:
         self._setup_task_tools()
         self._setup_project_tools()
         self._setup_client_tools()
+        self._setup_project_user_tools()
     
     def _setup_timer_tools(self):
         """Set up timer-related tools."""
@@ -198,13 +201,25 @@ class TogglServer:
         @self.mcp.tool()
         async def toggl_get_projects(workspace_id: Optional[int] = None) -> List[Dict[str, Any]]:
             """Get projects for a workspace.
-            
+
             Args:
                 workspace_id: Workspace ID (uses default if not provided)
             """
             projects = await self.workspace_service.get_projects(workspace_id)
             return [project.model_dump() for project in projects]
-    
+
+        @self.mcp.tool()
+        async def toggl_get_workspace_users(workspace_id: Optional[int] = None,
+                                           exclude_deleted: bool = True) -> List[Dict[str, Any]]:
+            """Get users in a workspace.
+
+            Args:
+                workspace_id: Workspace ID (uses default if not provided)
+                exclude_deleted: Whether to exclude deleted users (default: True)
+            """
+            users = await self.workspace_service.get_users(workspace_id, exclude_deleted)
+            return [user.model_dump() for user in users]
+
     def _setup_task_tools(self):
         """Set up task management tools."""
         
@@ -510,6 +525,94 @@ class TogglServer:
                     client_id, restore_all_projects, project_ids
                 )
                 return client.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+    def _setup_project_user_tools(self):
+        """Set up project user (member) management tools."""
+
+        @self.mcp.tool()
+        async def toggl_get_project_users(project_ids: Optional[List[int]] = None,
+                                         user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+            """Get project users (members).
+
+            Args:
+                project_ids: Optional list of project IDs to filter by
+                user_id: Optional user ID to filter by
+            """
+            try:
+                project_users = await self.project_user_service.get_project_users(
+                    project_ids, user_id
+                )
+                return [pu.model_dump() for pu in project_users]
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_add_project_user(project_id: int, user_id: int,
+                                        manager: bool = False,
+                                        rate: Optional[float] = None,
+                                        labor_cost: Optional[float] = None,
+                                        rate_change_mode: Optional[str] = None,
+                                        labor_cost_change_mode: Optional[str] = None) -> Dict[str, Any]:
+            """Add a user to a project as a member.
+
+            Args:
+                project_id: The project ID
+                user_id: The user ID to add
+                manager: Whether the user should be a project manager (default: False)
+                rate: Hourly rate for this project user (optional)
+                labor_cost: Labor cost for this project user (optional)
+                rate_change_mode: Rate change mode: "start-today", "override-current", or "override-all"
+                labor_cost_change_mode: Labor cost change mode: "start-today", "override-current", or "override-all"
+            """
+            try:
+                project_user = await self.project_user_service.add_project_user(
+                    project_id, user_id, manager, rate, labor_cost,
+                    rate_change_mode, labor_cost_change_mode
+                )
+                return project_user.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_update_project_user(project_user_id: int,
+                                           manager: Optional[bool] = None,
+                                           rate: Optional[float] = None,
+                                           labor_cost: Optional[float] = None,
+                                           rate_change_mode: Optional[str] = None,
+                                           labor_cost_change_mode: Optional[str] = None) -> Dict[str, Any]:
+            """Update a project user (member).
+
+            Args:
+                project_user_id: The project user ID
+                manager: Whether the user should be a project manager
+                rate: Hourly rate for this project user
+                labor_cost: Labor cost for this project user
+                rate_change_mode: Rate change mode: "start-today", "override-current", or "override-all"
+                labor_cost_change_mode: Labor cost change mode: "start-today", "override-current", or "override-all"
+            """
+            try:
+                project_user = await self.project_user_service.update_project_user(
+                    project_user_id, manager, rate, labor_cost,
+                    rate_change_mode, labor_cost_change_mode
+                )
+                return project_user.model_dump()
+            except ValueError as e:
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        async def toggl_delete_project_user(project_user_id: int) -> Dict[str, Any]:
+            """Remove a user from a project.
+
+            Args:
+                project_user_id: The project user ID to delete
+            """
+            try:
+                success = await self.project_user_service.delete_project_user(project_user_id)
+                if success:
+                    return {"success": True, "message": f"Project user {project_user_id} removed successfully"}
+                return {"success": False, "message": f"Failed to remove project user {project_user_id}"}
             except ValueError as e:
                 return {"error": str(e)}
 

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 
 from .client import TogglClient
-from .models import TimeEntry, Project, Workspace, Task, Client
+from .models import TimeEntry, Project, Workspace, Task, Client, User, ProjectUser
 
 
 class TimerService:
@@ -179,11 +179,23 @@ class WorkspaceService:
         if not workspace_id:
             workspaces = await self.client.get_workspaces()
             workspace_id = workspaces[0].id if workspaces else None
-        
+
         if not workspace_id:
             return []
-        
+
         return await self.client.get_projects(workspace_id)
+
+    async def get_users(self, workspace_id: Optional[int] = None,
+                       exclude_deleted: bool = True) -> List[User]:
+        """Get users in a workspace."""
+        if not workspace_id:
+            workspaces = await self.client.get_workspaces()
+            workspace_id = workspaces[0].id if workspaces else None
+
+        if not workspace_id:
+            return []
+
+        return await self.client.get_workspace_users(workspace_id, exclude_deleted)
 
 
 class TaskService:
@@ -449,3 +461,95 @@ class ClientService:
         return await self.client.restore_client(
             workspace_id, client_id, restore_all_projects, project_ids
         )
+
+
+class ProjectUserService:
+    """Service for project user (member) management."""
+
+    def __init__(self, client: TogglClient, workspace_id: Optional[int] = None):
+        self.client = client
+        self.default_workspace_id = workspace_id
+
+    async def _get_workspace_id(self) -> Optional[int]:
+        """Get workspace ID (from config or first available)."""
+        if self.default_workspace_id:
+            return self.default_workspace_id
+
+        workspaces = await self.client.get_workspaces()
+        return workspaces[0].id if workspaces else None
+
+    async def get_project_users(self, project_ids: Optional[List[int]] = None,
+                               user_id: Optional[int] = None) -> List[ProjectUser]:
+        """Get project users (members).
+
+        Args:
+            project_ids: Optional list of project IDs to filter by
+            user_id: Optional user ID to filter by
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.get_project_users(workspace_id, project_ids, user_id)
+
+    async def add_project_user(self, project_id: int, user_id: int,
+                              manager: bool = False, rate: Optional[float] = None,
+                              labor_cost: Optional[float] = None,
+                              rate_change_mode: Optional[str] = None,
+                              labor_cost_change_mode: Optional[str] = None) -> ProjectUser:
+        """Add a user to a project.
+
+        Args:
+            project_id: The project ID
+            user_id: The user ID to add
+            manager: Whether the user should be a project manager
+            rate: Hourly rate for this project user
+            labor_cost: Labor cost for this project user
+            rate_change_mode: "start-today", "override-current", or "override-all"
+            labor_cost_change_mode: "start-today", "override-current", or "override-all"
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.add_project_user(
+            workspace_id, project_id, user_id, manager, rate, labor_cost,
+            rate_change_mode, labor_cost_change_mode
+        )
+
+    async def update_project_user(self, project_user_id: int,
+                                 manager: Optional[bool] = None,
+                                 rate: Optional[float] = None,
+                                 labor_cost: Optional[float] = None,
+                                 rate_change_mode: Optional[str] = None,
+                                 labor_cost_change_mode: Optional[str] = None) -> ProjectUser:
+        """Update a project user.
+
+        Args:
+            project_user_id: The project user ID
+            manager: Whether the user should be a project manager
+            rate: Hourly rate for this project user
+            labor_cost: Labor cost for this project user
+            rate_change_mode: "start-today", "override-current", or "override-all"
+            labor_cost_change_mode: "start-today", "override-current", or "override-all"
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.update_project_user(
+            workspace_id, project_user_id, manager, rate, labor_cost,
+            rate_change_mode, labor_cost_change_mode
+        )
+
+    async def delete_project_user(self, project_user_id: int) -> bool:
+        """Remove a user from a project.
+
+        Args:
+            project_user_id: The project user ID
+        """
+        workspace_id = await self._get_workspace_id()
+        if not workspace_id:
+            raise ValueError("No workspace available")
+
+        return await self.client.delete_project_user(workspace_id, project_user_id)

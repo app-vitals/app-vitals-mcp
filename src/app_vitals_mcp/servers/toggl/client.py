@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 
 import httpx
 
-from .models import TimeEntry, Project, Workspace, Task, Client
+from .models import TimeEntry, Project, Workspace, Task, Client, User, ProjectUser
 
 
 class TogglClient:
@@ -464,6 +464,156 @@ class TogglClient:
         )
         response.raise_for_status()
         return Client(**response.json())
+
+    # Workspace Users API
+
+    async def get_workspace_users(self, workspace_id: int,
+                                 exclude_deleted: bool = True) -> List[User]:
+        """Get all users in a workspace.
+
+        Args:
+            workspace_id: The workspace ID
+            exclude_deleted: If True, exclude deleted users
+
+        Returns:
+            List of User objects
+        """
+        params = {}
+        if exclude_deleted:
+            params["exclude_deleted"] = "true"
+
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/users",
+            params=params if params else None
+        )
+        response.raise_for_status()
+        return [User(**user) for user in response.json()]
+
+    # Project Users API
+
+    async def get_project_users(self, workspace_id: int,
+                               project_ids: Optional[List[int]] = None,
+                               user_id: Optional[int] = None) -> List[ProjectUser]:
+        """Get project users (members) for a workspace.
+
+        Args:
+            workspace_id: The workspace ID
+            project_ids: Optional list of project IDs to filter by
+            user_id: Optional user ID to filter by
+
+        Returns:
+            List of ProjectUser objects
+        """
+        params: Dict[str, Any] = {}
+        if project_ids:
+            params["project_ids"] = ",".join(map(str, project_ids))
+        if user_id is not None:
+            params["user_id"] = str(user_id)
+
+        response = await self.client.get(
+            f"{self.base_url}/workspaces/{workspace_id}/project_users",
+            params=params if params else None
+        )
+        response.raise_for_status()
+        return [ProjectUser(**pu) for pu in response.json()]
+
+    async def add_project_user(self, workspace_id: int, project_id: int, user_id: int,
+                              manager: bool = False, rate: Optional[float] = None,
+                              labor_cost: Optional[float] = None,
+                              rate_change_mode: Optional[str] = None,
+                              labor_cost_change_mode: Optional[str] = None) -> ProjectUser:
+        """Add a user to a project.
+
+        Args:
+            workspace_id: The workspace ID
+            project_id: The project ID
+            user_id: The user ID to add
+            manager: Whether the user should be a project manager
+            rate: Hourly rate for this project user
+            labor_cost: Labor cost for this project user
+            rate_change_mode: "start-today", "override-current", or "override-all"
+            labor_cost_change_mode: "start-today", "override-current", or "override-all"
+
+        Returns:
+            ProjectUser object
+        """
+        payload: Dict[str, Any] = {
+            "project_id": project_id,
+            "user_id": user_id,
+            "manager": manager
+        }
+
+        if rate is not None:
+            payload["rate"] = rate
+        if labor_cost is not None:
+            payload["labor_cost"] = labor_cost
+        if rate_change_mode:
+            payload["rate_change_mode"] = rate_change_mode
+        if labor_cost_change_mode:
+            payload["labor_cost_change_mode"] = labor_cost_change_mode
+
+        response = await self.client.post(
+            f"{self.base_url}/workspaces/{workspace_id}/project_users",
+            json=payload
+        )
+        response.raise_for_status()
+        return ProjectUser(**response.json())
+
+    async def update_project_user(self, workspace_id: int, project_user_id: int,
+                                 manager: Optional[bool] = None,
+                                 rate: Optional[float] = None,
+                                 labor_cost: Optional[float] = None,
+                                 rate_change_mode: Optional[str] = None,
+                                 labor_cost_change_mode: Optional[str] = None) -> ProjectUser:
+        """Update a project user.
+
+        Args:
+            workspace_id: The workspace ID
+            project_user_id: The project user ID
+            manager: Whether the user should be a project manager
+            rate: Hourly rate for this project user
+            labor_cost: Labor cost for this project user
+            rate_change_mode: "start-today", "override-current", or "override-all"
+            labor_cost_change_mode: "start-today", "override-current", or "override-all"
+
+        Returns:
+            Updated ProjectUser object
+        """
+        payload: Dict[str, Any] = {}
+
+        if manager is not None:
+            payload["manager"] = manager
+        if rate is not None:
+            payload["rate"] = rate
+        if labor_cost is not None:
+            payload["labor_cost"] = labor_cost
+        if rate_change_mode:
+            payload["rate_change_mode"] = rate_change_mode
+        if labor_cost_change_mode:
+            payload["labor_cost_change_mode"] = labor_cost_change_mode
+
+        response = await self.client.put(
+            f"{self.base_url}/workspaces/{workspace_id}/project_users/{project_user_id}",
+            json=payload
+        )
+        response.raise_for_status()
+        return ProjectUser(**response.json())
+
+    async def delete_project_user(self, workspace_id: int, project_user_id: int) -> bool:
+        """Remove a user from a project.
+
+        Args:
+            workspace_id: The workspace ID
+            project_user_id: The project user ID
+
+        Returns:
+            True if successful
+        """
+        response = await self.client.delete(
+            f"{self.base_url}/workspaces/{workspace_id}/project_users/{project_user_id}"
+        )
+        response.raise_for_status()
+        return response.status_code == 200
 
     async def close(self):
         """Close the HTTP client."""

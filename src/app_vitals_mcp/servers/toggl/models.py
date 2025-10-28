@@ -53,6 +53,17 @@ class Workspace(BaseModel):
     organization_id: int
 
 
+class User(BaseModel):
+    """Toggl workspace user model."""
+    id: int
+    email: str
+    fullname: str
+    inactive: bool = False
+    is_active: bool = True
+    is_admin: bool = False
+    role: Optional[str] = None
+
+
 class Client(BaseModel):
     """Toggl client model."""
     id: int
@@ -63,3 +74,19 @@ class Client(BaseModel):
     external_reference: Optional[str] = None
     at: Optional[str] = None  # timestamp
     creator_id: Optional[int] = None
+
+
+class ProjectUser(BaseModel):
+    """Toggl project user (member) model."""
+    id: int
+    user_id: int
+    project_id: int
+    workspace_id: int
+    manager: bool = False
+    rate: Optional[float] = None
+    rate_last_updated: Optional[str] = None
+    labor_cost: Optional[float] = None
+    labor_cost_last_updated: Optional[str] = None
+    at: Optional[str] = None  # timestamp
+    gid: Optional[int] = None
+    group_id: Optional[int] = None

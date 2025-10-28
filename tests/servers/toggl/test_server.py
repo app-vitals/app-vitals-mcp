@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from app_vitals_mcp.servers.toggl.config import TogglConfig
 from app_vitals_mcp.servers.toggl.server import TogglServer
-from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project, Task, Client
+from app_vitals_mcp.servers.toggl.models import TimeEntry, Workspace, Project, Task, Client, User, ProjectUser
 
 
 @pytest.mark.unit
@@ -31,6 +31,7 @@ class TestTogglServerUnit:
         server.analytics_service.get_time_summary = AsyncMock()
         server.workspace_service.get_workspaces = AsyncMock()
         server.workspace_service.get_projects = AsyncMock()
+        server.workspace_service.get_users = AsyncMock()
         server.task_service.get_tasks = AsyncMock()
         server.task_service.get_task = AsyncMock()
         server.task_service.create_task = AsyncMock()
@@ -47,6 +48,10 @@ class TestTogglServerUnit:
         server.client_service.delete_client = AsyncMock()
         server.client_service.archive_client = AsyncMock()
         server.client_service.restore_client = AsyncMock()
+        server.project_user_service.get_project_users = AsyncMock()
+        server.project_user_service.add_project_user = AsyncMock()
+        server.project_user_service.update_project_user = AsyncMock()
+        server.project_user_service.delete_project_user = AsyncMock()
         server.client.close = AsyncMock()
         
         yield server
@@ -838,6 +843,138 @@ class TestTogglServerUnit:
         assert result["id"] == 2001
         assert result["name"] == "Restored Client"
         assert result["archived"] is False
+
+    # Workspace Users tests
+    async def test_get_workspace_users(self, mock_server: TogglServer):
+        """Test getting workspace users."""
+        mock_users = [
+            User(
+                id=1001,
+                email="user1@example.com",
+                fullname="User One",
+                inactive=False,
+                is_active=True,
+                is_admin=True,
+                role="admin"
+            ),
+            User(
+                id=1002,
+                email="user2@example.com",
+                fullname="User Two",
+                inactive=False,
+                is_active=True,
+                is_admin=False,
+                role="user"
+            )
+        ]
+
+        mock_server.workspace_service.get_users.return_value = mock_users
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_workspace_users = tools["toggl_get_workspace_users"]
+
+        result = await get_workspace_users.fn()
+
+        assert len(result) == 2
+        assert result[0]["id"] == 1001
+        assert result[0]["email"] == "user1@example.com"
+        assert result[1]["role"] == "user"
+
+    # Project Users tests
+    async def test_get_project_users(self, mock_server: TogglServer):
+        """Test getting project users."""
+        mock_project_users = [
+            ProjectUser(
+                id=5001,
+                user_id=1001,
+                project_id=3001,
+                workspace_id=12345,
+                manager=True,
+                rate=50.0,
+                labor_cost=100.0
+            )
+        ]
+
+        mock_server.project_user_service.get_project_users.return_value = mock_project_users
+
+        tools = mock_server.mcp._tool_manager._tools
+        get_project_users = tools["toggl_get_project_users"]
+
+        result = await get_project_users.fn()
+
+        assert len(result) == 1
+        assert result[0]["id"] == 5001
+        assert result[0]["user_id"] == 1001
+        assert result[0]["manager"] is True
+
+    async def test_add_project_user(self, mock_server: TogglServer):
+        """Test adding a user to a project."""
+        mock_project_user = ProjectUser(
+            id=5001,
+            user_id=1001,
+            project_id=3001,
+            workspace_id=12345,
+            manager=True,
+            rate=75.0,
+            labor_cost=150.0
+        )
+
+        mock_server.project_user_service.add_project_user.return_value = mock_project_user
+
+        tools = mock_server.mcp._tool_manager._tools
+        add_project_user = tools["toggl_add_project_user"]
+
+        result = await add_project_user.fn(
+            project_id=3001,
+            user_id=1001,
+            manager=True,
+            rate=75.0
+        )
+
+        assert result["id"] == 5001
+        assert result["user_id"] == 1001
+        assert result["project_id"] == 3001
+        assert result["manager"] is True
+        assert result["rate"] == 75.0
+
+    async def test_update_project_user(self, mock_server: TogglServer):
+        """Test updating a project user."""
+        updated_project_user = ProjectUser(
+            id=5001,
+            user_id=1001,
+            project_id=3001,
+            workspace_id=12345,
+            manager=False,
+            rate=100.0,
+            labor_cost=200.0
+        )
+
+        mock_server.project_user_service.update_project_user.return_value = updated_project_user
+
+        tools = mock_server.mcp._tool_manager._tools
+        update_project_user = tools["toggl_update_project_user"]
+
+        result = await update_project_user.fn(
+            project_user_id=5001,
+            manager=False,
+            rate=100.0
+        )
+
+        assert result["id"] == 5001
+        assert result["manager"] is False
+        assert result["rate"] == 100.0
+
+    async def test_delete_project_user(self, mock_server: TogglServer):
+        """Test deleting a project user."""
+        mock_server.project_user_service.delete_project_user.return_value = True
+
+        tools = mock_server.mcp._tool_manager._tools
+        delete_project_user = tools["toggl_delete_project_user"]
+
+        result = await delete_project_user.fn(project_user_id=5001)
+
+        assert result["success"] is True
+        assert "removed successfully" in result["message"]
 
 
 @pytest.mark.integration

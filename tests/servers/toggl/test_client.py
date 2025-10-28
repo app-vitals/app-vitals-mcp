@@ -849,3 +849,161 @@ class TestTogglClient:
 
         result = await mock_toggl_client.delete_project(workspace_id, project_id)
         assert result
+
+    # Workspace Users tests
+    @respx.mock
+    async def test_get_workspace_users(self, mock_toggl_client: TogglClient):
+        """Test getting workspace users."""
+        workspace_id = 12345
+        mock_response = [
+            {
+                "id": 1001,
+                "email": "user1@example.com",
+                "fullname": "User One",
+                "inactive": False,
+                "is_active": True,
+                "is_admin": True,
+                "role": "admin"
+            },
+            {
+                "id": 1002,
+                "email": "user2@example.com",
+                "fullname": "User Two",
+                "inactive": False,
+                "is_active": True,
+                "is_admin": False,
+                "role": "user"
+            }
+        ]
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/users").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_workspace_users(workspace_id)
+
+        assert len(result) == 2
+        assert result[0].id == 1001
+        assert result[0].email == "user1@example.com"
+        assert result[0].fullname == "User One"
+        assert result[0].is_admin is True
+        assert result[1].id == 1002
+        assert result[1].role == "user"
+
+    # Project Users tests
+    @respx.mock
+    async def test_get_project_users(self, mock_toggl_client: TogglClient):
+        """Test getting project users."""
+        workspace_id = 12345
+        mock_response = [
+            {
+                "id": 5001,
+                "user_id": 1001,
+                "project_id": 3001,
+                "workspace_id": workspace_id,
+                "manager": True,
+                "rate": 50.0,
+                "labor_cost": 100.0,
+                "at": "2024-01-15T10:00:00Z"
+            }
+        ]
+
+        respx.get(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/project_users").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.get_project_users(workspace_id)
+
+        assert len(result) == 1
+        assert result[0].id == 5001
+        assert result[0].user_id == 1001
+        assert result[0].project_id == 3001
+        assert result[0].manager is True
+        assert result[0].rate == 50.0
+
+    @respx.mock
+    async def test_add_project_user(self, mock_toggl_client: TogglClient):
+        """Test adding a user to a project."""
+        workspace_id = 12345
+        project_id = 3001
+        user_id = 1001
+        mock_response = {
+            "id": 5001,
+            "user_id": user_id,
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+            "manager": True,
+            "rate": 75.0,
+            "labor_cost": 150.0,
+            "at": "2024-01-15T10:00:00Z"
+        }
+
+        respx.post(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/project_users").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.add_project_user(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            user_id=user_id,
+            manager=True,
+            rate=75.0,
+            labor_cost=150.0
+        )
+
+        assert result.id == 5001
+        assert result.user_id == user_id
+        assert result.project_id == project_id
+        assert result.manager is True
+        assert result.rate == 75.0
+        assert result.labor_cost == 150.0
+
+    @respx.mock
+    async def test_update_project_user(self, mock_toggl_client: TogglClient):
+        """Test updating a project user."""
+        workspace_id = 12345
+        project_user_id = 5001
+        mock_response = {
+            "id": project_user_id,
+            "user_id": 1001,
+            "project_id": 3001,
+            "workspace_id": workspace_id,
+            "manager": False,
+            "rate": 100.0,
+            "labor_cost": 200.0,
+            "at": "2024-01-15T11:00:00Z"
+        }
+
+        respx.put(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/project_users/{project_user_id}").respond(
+            status_code=200,
+            json=mock_response
+        )
+
+        result = await mock_toggl_client.update_project_user(
+            workspace_id=workspace_id,
+            project_user_id=project_user_id,
+            manager=False,
+            rate=100.0,
+            labor_cost=200.0
+        )
+
+        assert result.id == project_user_id
+        assert result.manager is False
+        assert result.rate == 100.0
+        assert result.labor_cost == 200.0
+
+    @respx.mock
+    async def test_delete_project_user(self, mock_toggl_client: TogglClient):
+        """Test deleting a project user."""
+        workspace_id = 12345
+        project_user_id = 5001
+
+        respx.delete(f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/project_users/{project_user_id}").respond(
+            status_code=200
+        )
+
+        result = await mock_toggl_client.delete_project_user(workspace_id, project_user_id)
+        assert result
